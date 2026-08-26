@@ -1,0 +1,15 @@
+{
+  "description": "Amir Loop - auto-arming Stop hook that keeps a session going until the work is done",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/PROGRA~1/Git/bin/bash.exe C:/lumvale/lumvale-docs/engineering/autonomous-stack/files/amir-plugin/scripts/amir-loop-stop.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
