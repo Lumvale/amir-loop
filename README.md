@@ -132,7 +132,7 @@ Tests are written with [bats](https://github.com/bats-core/bats-core):
 bats tests/
 ```
 
-53 tests across 5 suites (`bounds`, `doctor`, `failopen`, `invariants`, `status`).
+53 tests across 6 suites (`bounds`, `doctor`, `failopen`, `invariants`, `parity`, `status`).
 CI runs this suite on a 3-OS matrix (Ubuntu, macOS, Windows) on every push and pull
 request.
 
