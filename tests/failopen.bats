@@ -105,3 +105,8 @@ load helper
   shopt -u nullglob
   [ "${#markers[@]}" -eq 0 ]
 }
+
+@test "malformed hook input fails open with exit code zero" {
+  run bash -c "printf '%s' 'not-json' | bash '$HOOK'"
+  [ "$status" -eq 0 ]
+}
