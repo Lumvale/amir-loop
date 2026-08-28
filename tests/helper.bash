@@ -31,6 +31,6 @@ EOF
 }
 
 run_hook() {
-  printf '{"cwd":"%s","session_id":"s1","transcript_path":"%s"}' \
-    "$BATS_TEST_TMPDIR" "${TRANSCRIPT:-}" | bash "$HOOK" "$@"
+  jq -n --arg cwd "$BATS_TEST_TMPDIR" --arg session "s1" --arg tp "${TRANSCRIPT:-}" \
+    '{cwd: $cwd, session_id: $session, transcript_path: $tp}' | bash "$HOOK" "$@"
 }
