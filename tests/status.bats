@@ -66,3 +66,73 @@ snapshot_claude() {
   after="$(snapshot_claude)"
   [ "$before" = "$after" ]
 }
+
+# --- malformed state files -------------------------------------------------
+# The hook (plugins/amir-loop/hooks/amir-loop-stop.sh:236-239) deletes the
+# state file and allows the stop the moment iteration or max_iterations fails
+# the `''|*[!0-9]*` test. status must never report `armed` (or a digits-only
+# number quietly salvaged from junk) for a state the hook has already
+# discarded - that would be a diagnostic that lies in exactly the situation
+# someone reaches for it.
+
+@test "status reports invalid, not armed, when iteration contains junk" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  printf -- '---\nactive: true\niteration: 4abc\nmax_iterations: 20\ncompletion_promise: "AMIR LOOP COMPLETE"\nstarted_at: "2026-08-28T00:00:00Z"\n---\n\nwork\n' > "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$STATUS"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q '^state: invalid$'
+  ! echo "$output" | grep -q '^state: armed$'
+  ! echo "$output" | grep -qE '^iteration: [0-9]+ of'
+}
+
+@test "status reports invalid when max_iterations contains junk" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  printf -- '---\nactive: true\niteration: 4\nmax_iterations: 20x\ncompletion_promise: "AMIR LOOP COMPLETE"\nstarted_at: "2026-08-28T00:00:00Z"\n---\n\nwork\n' > "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$STATUS"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q '^state: invalid$'
+  ! echo "$output" | grep -q '^state: armed$'
+}
+
+@test "status reports invalid when max_iterations is missing entirely" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  printf -- '---\nactive: true\niteration: 4\ncompletion_promise: "AMIR LOOP COMPLETE"\nstarted_at: "2026-08-28T00:00:00Z"\n---\n\nwork\n' > "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$STATUS"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q '^state: invalid$'
+  ! echo "$output" | grep -q '^state: armed$'
+  ! echo "$output" | grep -q '^iteration: 4 of $'
+}
+
+@test "status reports invalid for a completely empty state file" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  : > "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$STATUS"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q '^state: invalid$'
+  ! echo "$output" | grep -q '^state: armed$'
+}
+
+@test "status reports invalid for a state file with no --- frontmatter delimiters" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  printf 'iteration: 4\nmax_iterations: 20\nno frontmatter here\n' > "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$STATUS"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q '^state: invalid$'
+  ! echo "$output" | grep -q '^state: armed$'
+}
+
+@test "status preserves a colon and embedded quotes in completion_promise" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  printf -- '---\nactive: true\niteration: 4\nmax_iterations: 20\ncompletion_promise: "Ship it: really "done" now"\nstarted_at: "2026-08-28T00:00:00Z"\n---\n\nwork\n' > "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$STATUS"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q '^state: armed$'
+  echo "$output" | grep -q '^promise: Ship it: really "done" now$'
+}
