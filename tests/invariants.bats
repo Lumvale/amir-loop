@@ -63,12 +63,17 @@ EOF
     "$BATS_TEST_TMPDIR/fleet/repo/sub/.claude/amir-loop.local.md"
 }
 
-@test "no principles anywhere yields the generic body only" {
-  use_fixture vscode-copilot.jsonl
-  run run_hook
+@test "principles resolution climbs ancestors only, never siblings" {
+  mkdir -p "$BATS_TEST_TMPDIR/decoy/.claude" "$BATS_TEST_TMPDIR/work"
+  echo "DECOY PRINCIPLES MUST NOT BE LOADED" \
+    > "$BATS_TEST_TMPDIR/decoy/.claude/amir-loop-principles.md"
+  cp "$FIXTURES/vscode-copilot.jsonl" "$BATS_TEST_TMPDIR/t.jsonl"
+  run bash -c "printf '{\"cwd\":\"$BATS_TEST_TMPDIR/work\",\"session_id\":\"s1\",\"transcript_path\":\"$BATS_TEST_TMPDIR/t.jsonl\"}' | bash '$HOOK'"
   [ "$status" -eq 0 ]
   grep -q "Work as a collective of principal engineers" \
-    "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md"
+    "$BATS_TEST_TMPDIR/work/.claude/amir-loop.local.md"
+  ! grep -q "DECOY PRINCIPLES MUST NOT BE LOADED" \
+    "$BATS_TEST_TMPDIR/work/.claude/amir-loop.local.md"
 }
 
 @test "iteration 1 sends the full brief; iteration 2 sends only the pointer" {
