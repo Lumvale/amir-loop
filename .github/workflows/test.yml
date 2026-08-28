@@ -20,9 +20,13 @@ jobs:
         run: |
           ! grep -rlU $'\r' --include='*.sh' --include='*.bats' . || {
             echo "CRLF found - .gitattributes eol=lf is not holding"; exit 1; }
+      # YAML is deliberately NOT scanned here: this step's own run: text
+      # spells out the banned literals (C:/, C:\\, PROGRA~1) as its pattern,
+      # so including *.yml makes the guard match itself. Re-adding it will
+      # turn this step permanently red without catching any real path.
       - name: Assert no absolute paths
         run: |
-          ! grep -rnE 'C:/|C:\\\\|/home/[a-z]+/|PROGRA~1' --include='*.json' --include='*.sh' --include='*.md' --include='*.ts' --include='*.yml' .
+          ! grep -rnE 'C:/|C:\\\\|/home/[a-z]+/|PROGRA~1' --include='*.json' --include='*.sh' --include='*.md' --include='*.ts' .
       - name: Assert vendored jq executes on this platform
         run: |
           vendor="plugins/amir-loop/vendor/jq"
