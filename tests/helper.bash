@@ -41,7 +41,8 @@ run_codex_hook() {
   jq -n --arg cwd "$BATS_TEST_TMPDIR" --arg session "s1" \
     --arg turn "${CODEX_TURN_ID:-turn-1}" \
     --arg last "${CODEX_LAST_ASSISTANT:-work remains}" \
+    --arg error "${CODEX_ERROR:-}" \
     '{cwd: $cwd, session_id: $session, transcript_path: null, turn_id: $turn,
-      last_assistant_message: $last, stop_hook_active: false, model: "gpt-5.6-sol"}' |
+      last_assistant_message: $last, error: $error, stop_hook_active: false, model: "gpt-5.6-sol"}' |
     bash "$HOOK" "$@"
 }

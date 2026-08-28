@@ -185,6 +185,27 @@ EOF
   [ ! -f "$BATS_TEST_TMPDIR/.claude/.amir-loop-done-s1" ]
 }
 
+@test "transient provider failure retries without consuming an iteration" {
+  arm_state 1 10
+  CODEX_LAST_ASSISTANT="Sorry, your request failed. Error Code: net::ERR_INCOMPLETE_CHUNKED_ENCODING" \
+    run run_codex_hook
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+  echo "$output" | jq -r '.reason' | grep -q "transient provider or network error"
+  grep -q '^iteration: 1$' "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md"
+  [ "$(cat "$BATS_TEST_TMPDIR/.claude/.amir-loop-retry-s1")" = "1" ]
+}
+
+@test "transient retry budget fails open after the configured limit" {
+  arm_state 1 10
+  AMIR_LOOP_RETRY_MAX=1 CODEX_LAST_ASSISTANT="ERR_INCOMPLETE_CHUNKED_ENCODING" run run_codex_hook
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+  AMIR_LOOP_RETRY_MAX=1 CODEX_LAST_ASSISTANT="ERR_INCOMPLETE_CHUNKED_ENCODING" run run_codex_hook
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  [ ! -f "$BATS_TEST_TMPDIR/.claude/.amir-loop-retry-s1" ]
+}
+
 @test "Codex Windows hook expands PLUGIN_ROOT with PowerShell syntax" {
   local hooks="$BATS_TEST_DIRNAME/../plugins/amir-loop/hooks/hooks.json"
   run jq -r '.hooks.Stop[0].hooks[0].commandWindows' "$hooks"
