@@ -46,10 +46,30 @@ for arg in "$@"; do
 done
 
 HOOK_INPUT=$(cat)
-command -v jq >/dev/null 2>&1 || allow_stop
+
+# jq resolution: vendored static binary for this platform, then PATH, then fail open.
+# A missing jq used to exit here silently, which presented as "the plugin is broken".
+_vendor="$(cd "$(dirname "$0")/.." && pwd)/vendor/jq"
+case "$(uname -s 2>/dev/null)" in
+  Linux)   _cand="$_vendor/jq-linux-amd64" ;;
+  Darwin)  case "$(uname -m 2>/dev/null)" in
+             arm64) _cand="$_vendor/jq-macos-arm64" ;;
+             *)     _cand="$_vendor/jq-macos-amd64" ;;
+           esac ;;
+  MINGW*|MSYS*|CYGWIN*) _cand="$_vendor/jq-windows-amd64.exe" ;;
+  *) _cand="" ;;
+esac
+if [ -n "$_cand" ] && [ -x "$_cand" ]; then
+  JQ="$_cand"
+elif command -v jq >/dev/null 2>&1; then
+  JQ="jq"
+else
+  allow_stop
+fi
+
 [ "${AMIR_LOOP_OFF:-0}" = "1" ] && allow_stop
 
-CWD=$(printf '%s' "$HOOK_INPUT" | jq -r '.cwd // empty' 2>/dev/null)
+CWD=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.cwd // empty' 2>/dev/null)
 [ -n "$CWD" ] || CWD="$PWD"
 if command -v cygpath >/dev/null 2>&1; then
   CWD=$(cygpath -u "$CWD" 2>/dev/null) || allow_stop
@@ -57,8 +77,8 @@ fi
 [ -d "$CWD" ] || allow_stop
 [ -f "$CWD/.claude/amir-loop-off" ] && allow_stop
 
-SESSION=$(printf '%s' "$HOOK_INPUT" | jq -r '.session_id // "nosession"' 2>/dev/null)
-TRANSCRIPT=$(printf '%s' "$HOOK_INPUT" | jq -r '.transcript_path // empty' 2>/dev/null)
+SESSION=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.session_id // "nosession"' 2>/dev/null)
+TRANSCRIPT=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.transcript_path // empty' 2>/dev/null)
 
 # A VS Code session is identifiable from the payload itself - its transcripts live under
 # GitHub.copilot-chat - so no environment sniffing is needed. In that host the `amir`
@@ -128,7 +148,7 @@ fi
 user_turns() {
   [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ] || { echo 0; return; }
   local n
-  n=$(jq -rs '[.[] | select(.type=="user.message" or .message.role=="user")] | length' "$TRANSCRIPT" 2>/dev/null)
+  n=$("$JQ" -rs '[.[] | select(.type=="user.message" or .message.role=="user")] | length' "$TRANSCRIPT" 2>/dev/null)
   case "$n" in ''|*[!0-9]*) echo 0 ;; *) echo "$n" ;; esac
 }
 
@@ -236,9 +256,9 @@ finish() { rm -f "$STATE"; user_turns > "$MARKER" 2>/dev/null; exit 0; }
 #      last message;
 #   2. the final assistant.message is routinely a tool-only turn with content "", so a
 #      plain `last` is empty.
-LAST=$(jq -rs '[.[] | select(.type=="assistant.message") | .data.content // "" | select(length>0)] | last // empty' "$TRANSCRIPT" 2>/dev/null)
+LAST=$("$JQ" -rs '[.[] | select(.type=="assistant.message") | .data.content // "" | select(length>0)] | last // empty' "$TRANSCRIPT" 2>/dev/null)
 if [ -z "$LAST" ]; then
-  LAST=$(jq -rs '[.[] | select(.message.role=="assistant") | ([.message.content[]? | select(.type=="text") | .text] | join("\n")) | select(length>0)] | last // empty' "$TRANSCRIPT" 2>/dev/null)
+  LAST=$("$JQ" -rs '[.[] | select(.message.role=="assistant") | ([.message.content[]? | select(.type=="text") | .text] | join("\n")) | select(length>0)] | last // empty' "$TRANSCRIPT" 2>/dev/null)
 fi
 [ -n "$LAST" ] || allow_stop
 
@@ -284,7 +304,7 @@ fi
 # top-level form is why the loop displayed its message but never actually continued a VS
 # Code session - the log line to check is:
 #     [ToolCallingLoop] Stop hook result: shouldContinue=false, reasons=undefined
-jq -n --arg prompt "$PROMPT_TEXT" \
+"$JQ" -n --arg prompt "$PROMPT_TEXT" \
       --arg msg "Amir Loop iteration $NEXT/$LIMIT | to stop: output <promise>$GOAL</promise> (only when it is TRUE)" \
       '{
          decision: "block",

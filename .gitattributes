@@ -3,4 +3,5 @@
 *.bats text eol=lf
 *.md text eol=lf
 vendor/jq/* binary
+**/vendor/jq/* binary
 *.vsix binary
