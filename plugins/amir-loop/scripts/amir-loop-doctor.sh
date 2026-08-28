@@ -9,6 +9,17 @@
 # vendor/jq, so `$(dirname "$0")/..` resolves to the same plugin root from either.
 set -uo pipefail
 RC=0
+ACTION="diagnose"
+case "${1:-}" in
+  "") ;;
+  --disable-codex-notify) ACTION="disable-codex-notify" ;;
+  --help|-h)
+    printf '%s\n' "Usage: amir-loop-doctor.sh [--disable-codex-notify]"
+    printf '%s\n' "  --disable-codex-notify  Back up Codex config and remove its top-level notify hook"
+    exit 0
+    ;;
+  *) printf 'FAIL: unknown option: %s\n' "$1"; exit 1 ;;
+esac
 ok()   { printf 'ok:   %s\n' "$*"; }
 warn() { printf 'warn: %s\n' "$*"; }
 fail() { printf 'FAIL: %s\n' "$*"; RC=1; }
@@ -81,5 +92,55 @@ else
 fi
 [ -f "$PWD/.claude/amir-loop-off" ] && warn "kill switch present: .claude/amir-loop-off - the hook will not re-arm"
 [ "${AMIR_LOOP_OFF:-0}" = "1" ] && warn "AMIR_LOOP_OFF=1 is set in this environment"
+
+# --- Codex notify hook ---
+# Codex runs `notify` as a host-level after-agent hook, independently of Amir Loop's
+# Stop hook. On Windows, an oversized command can fail before the loop gets control.
+# Keep this diagnostic advisory by default; disabling a user's notification hook is
+# an explicit action and must never happen during a normal doctor run.
+if [ -n "${AMIR_LOOP_CODEX_CONFIG:-}" ]; then
+  CODEX_CONFIG="$AMIR_LOOP_CODEX_CONFIG"
+elif [ -n "${CODEX_HOME:-}" ]; then
+  CODEX_CONFIG="$CODEX_HOME/config.toml"
+elif [ -n "${USERPROFILE:-}" ] && [ "$(uname -s 2>/dev/null)" != "Linux" ] && [ "$(uname -s 2>/dev/null)" != "Darwin" ]; then
+  _profile="$USERPROFILE"
+  if command -v cygpath >/dev/null 2>&1; then _profile=$(cygpath -u "$_profile"); fi
+  CODEX_CONFIG="$_profile/.codex/config.toml"
+else
+  CODEX_CONFIG="${HOME}/.codex/config.toml"
+fi
+
+if [ -f "$CODEX_CONFIG" ]; then
+  NOTIFY_LINES=$(grep -Ec '^[[:space:]]*notify[[:space:]]*=' "$CODEX_CONFIG" 2>/dev/null || true)
+  if [ "$NOTIFY_LINES" -gt 0 ]; then
+    if [ "$ACTION" = "disable-codex-notify" ]; then
+      if [ "$NOTIFY_LINES" -ne 1 ]; then
+        fail "Codex config has $NOTIFY_LINES notify entries; refusing automatic edit - review $CODEX_CONFIG manually"
+      elif ! grep -E '^[[:space:]]*notify[[:space:]]*=.*\][[:space:]]*$' "$CODEX_CONFIG" >/dev/null 2>&1; then
+        fail "Codex notify entry is not a single-line array; refusing automatic edit - review $CODEX_CONFIG manually"
+      else
+        _stamp=$(date '+%Y%m%d-%H%M%S')
+        _backup="${CODEX_CONFIG}.backup-amir-loop-${_stamp}"
+        if cp "$CODEX_CONFIG" "$_backup"; then
+          _tmp="${CODEX_CONFIG}.amir-loop-tmp.$$"
+          if awk '!/^[[:space:]]*notify[[:space:]]*=/' "$CODEX_CONFIG" > "$_tmp" && mv "$_tmp" "$CODEX_CONFIG"; then
+            ok "disabled Codex notify hook in $CODEX_CONFIG (backup: $_backup)"
+          else
+            rm -f "$_tmp"
+            fail "could not update Codex config; original backup is at $_backup"
+          fi
+        else
+          fail "could not back up Codex config before editing: $CODEX_CONFIG"
+        fi
+      fi
+    else
+      warn "Codex notify hook configured in $CODEX_CONFIG; it is independent of Amir Loop and may fail before the Stop hook (use --disable-codex-notify for a backed-up repair)"
+    fi
+  else
+    ok "no Codex notify hook configured ($CODEX_CONFIG)"
+  fi
+else
+  ok "Codex config not found ($CODEX_CONFIG)"
+fi
 
 exit $RC
