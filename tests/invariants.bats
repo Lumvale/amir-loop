@@ -219,6 +219,7 @@ EOF
   run jq -r '.hooks.Stop[0].hooks[0].command' "$hooks"
   [ "$status" -eq 0 ]
   [[ "$output" == *'$CLAUDE_PLUGIN_ROOT'* ]]
+  [[ "$output" == *'$CODEX_PLUGIN_ROOT'* ]]
   [[ "$output" == *'powershell.exe'* ]]
   [[ "$output" != *'${CLAUDE_PLUGIN_ROOT}'* ]]
 }
