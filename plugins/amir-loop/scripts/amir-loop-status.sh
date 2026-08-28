@@ -38,7 +38,7 @@ C="$PWD/.claude/.amir-loop-campaign"
 if [ -f "$C" ]; then
   START=$(cat "$C" 2>/dev/null)
   case "$START" in ''|*[!0-9]*) echo "campaign: unreadable" ;;
-    *) echo "campaign started: $(date -u -d "@$START" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "$START")" ;;
+    *) echo "campaign started: $(date -u -d "@$START" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r "$START" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "$START")" ;;
   esac
 fi
 [ -f "$PWD/.claude/amir-loop-off" ] && echo "kill switch: present"

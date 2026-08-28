@@ -121,7 +121,13 @@ if [ -n "${AMIR_LOOP_UNTIL:-}" ]; then
   case "$WHEN" in
     [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) WHEN="$WHEN 23:59:59" ;;
   esac
-  DEADLINE=$(date -d "$WHEN" +%s 2>/dev/null) || DEADLINE="invalid"
+  # GNU `date -d "STRING"` first; BSD/macOS date has no -d, so fall back to its
+  # `-j -f FORMAT STRING` form. By this point $WHEN is always "%Y-%m-%d %H:%M:%S"
+  # (bare dates were normalised above; a caller-supplied time is expected in that
+  # shape too), which is the format the BSD branch parses against.
+  DEADLINE=$(date -d "$WHEN" +%s 2>/dev/null) \
+    || DEADLINE=$(date -j -f "%Y-%m-%d %H:%M:%S" "$WHEN" +%s 2>/dev/null) \
+    || DEADLINE="invalid"
   [ -n "$DEADLINE" ] || DEADLINE="invalid"
 else
   DAYS="${AMIR_LOOP_DAYS:-5}"

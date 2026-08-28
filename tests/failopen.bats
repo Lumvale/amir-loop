@@ -11,10 +11,16 @@ load helper
     '{cwd: $cwd, session_id: $session, transcript_path: $tp}')
 
   # Mirror every command the hook and its shell might need (bash, cat, dirname,
-  # uname, sed, awk, date, mkdir, rm, grep, tr, cp, ...) EXCEPT jq, by symlinking
+  # uname, sed, awk, date, mkdir, rm, grep, tr, cp, ...) EXCEPT jq, by copying
   # everything on the real PATH into a scratch dir and deleting any `jq` that
   # landed in it. This starves the hook's OWN `command -v jq` specifically,
   # without also breaking the shell plumbing the way a bash-only PATH would.
+  #
+  # Uses `cp`, not `ln -s`: Git Bash on Windows can't create symlinks without
+  # developer mode or admin rights, which made this test fail hard on Windows CI
+  # (ln -s: Operation not permitted / Function not implemented) rather than
+  # skip. `cp` works identically on Linux, macOS, and Windows/Git Bash, and the
+  # cost - a slower, larger scratch dir - only pays once per test run.
   NOJQ="$BATS_TEST_TMPDIR/nojq"
   mkdir -p "$NOJQ"
   IFS=':' read -ra _dirs <<< "$PATH"
@@ -22,9 +28,10 @@ load helper
     [ -d "$d" ] || continue
     for f in "$d"/*; do
       [ -e "$f" ] || continue
+      [ -d "$f" ] && continue
       base=$(basename "$f")
       [ "$base" = "jq" ] && continue
-      [ -e "$NOJQ/$base" ] || ln -s "$f" "$NOJQ/$base" 2>/dev/null
+      [ -e "$NOJQ/$base" ] || cp -p "$f" "$NOJQ/$base" 2>/dev/null
     done
   done
   rm -f "$NOJQ/jq"
@@ -82,6 +89,12 @@ load helper
   TRANSCRIPT="$BATS_TEST_TMPDIR/does-not-exist.jsonl"
   run run_hook
   [ "$status" -eq 0 ]; [ -z "$output" ]
-  run bash -c "ls $BATS_TEST_TMPDIR/.claude/.amir-loop-done-* 2>/dev/null | wc -l"
-  [ "$output" = "0" ]
+  # Assert marker absence directly with a glob, rather than counting lines from `ls |
+  # wc -l`: BSD `wc -l` (macOS) right-pads its count with leading whitespace
+  # ("       0"), which fails a bare `[ "$output" = "0" ]` string comparison even
+  # though the underlying behaviour - no marker written - is correct there too.
+  shopt -s nullglob
+  markers=("$BATS_TEST_TMPDIR"/.claude/.amir-loop-done-*)
+  shopt -u nullglob
+  [ "${#markers[@]}" -eq 0 ]
 }

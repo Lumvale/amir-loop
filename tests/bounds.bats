@@ -56,3 +56,40 @@ load helper
   AMIR_LOOP_UNTIL=2000-01-01 run run_hook
   [ "$status" -eq 0 ]; [ -z "$output" ]
 }
+
+@test "AMIR_LOOP_UNTIL: BSD-style date without -d still parses (regression for macOS)" {
+  # "far in the future permits continuation" above only checks the outcome, which is
+  # exactly why it passed on Linux and failed silently on macOS: GNU `date -d` doesn't
+  # exist there, DEADLINE falls through to "invalid", and invalid is treated as
+  # expired -> allow_stop, which LOOKS like a legitimate pass/fail depending on what
+  # you compare it to. This test forces that failure mode by stubbing `date` to
+  # reject `-d` the way BSD/macOS date does, so the only way to reach "block" is
+  # through the hook's `-j -f` fallback branch actually converting the date.
+  use_fixture vscode-copilot.jsonl
+  arm_state 1 10
+  STUBDIR="$BATS_TEST_TMPDIR/stubdate"
+  mkdir -p "$STUBDIR"
+  cat > "$STUBDIR/date" <<'EOF'
+#!/bin/bash
+# Reject -d like BSD/macOS date, forcing the hook onto its `-j -f` fallback.
+# There is no macOS box in this runner, so emulate that fallback's semantics
+# using the real GNU date underneath, purely to prove the fallback branch -
+# not "invalid -> expired" - is what produced the result.
+if [ "$1" = "-d" ]; then
+  echo "stub-date: -d rejected (simulating BSD/macOS)" >&2
+  exit 1
+fi
+if [ "$1" = "-j" ] && [ "$2" = "-f" ]; then
+  fmt="$3"; val="$4"; outfmt="$5"
+  case "$fmt" in
+    "%Y-%m-%d %H:%M:%S") exec /usr/bin/date -d "$val" "$outfmt" ;;
+    *) echo "stub-date: unexpected -j -f format: $fmt" >&2; exit 1 ;;
+  esac
+fi
+exec /usr/bin/date "$@"
+EOF
+  chmod +x "$STUBDIR/date"
+
+  PATH="$STUBDIR:$PATH" AMIR_LOOP_UNTIL=2099-01-01 run run_hook
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+}
