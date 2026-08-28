@@ -28,6 +28,9 @@
 #                     .claude/.amir-loop-campaign. 0 = no deadline. Junk => dormant.
 #   AMIR_LOOP_UNTIL   absolute date override. Unparseable => treated as expired.
 # KILL SWITCHES: AMIR_LOOP_OFF=1, or a .claude/amir-loop-off file.
+# TRANSIENT RETRIES: AMIR_LOOP_RETRY_MAX (default 3) retries a provider/network
+# failure without consuming a loop iteration. Once exhausted, the hook fails open so
+# the host can surface the error to the user instead of retrying forever.
 #
 # Unexpected conditions ALLOW THE STOP. Failing closed would mean a session that can
 # never end.
@@ -102,6 +105,7 @@ fi
 STATE="$CWD/.claude/amir-loop.local.md"
 CAMPAIGN="$CWD/.claude/.amir-loop-campaign"
 MARKER="$CWD/.claude/.amir-loop-done-$SESSION"
+RETRY_FILE="$CWD/.claude/.amir-loop-retry-$SESSION"
 # Optional per-project standing orders, appended to every armed loop. Absent => the
 # generic posture below is all the agent gets, which is the safe default for any project.
 #
@@ -303,6 +307,41 @@ if [ -z "$LAST" ]; then
     LAST=$("$JQ" -rs '[.[] | select(.message.role=="assistant") | ([.message.content[]? | select(.type=="text") | .text] | join("\n")) | select(length>0)] | last // empty' "$TRANSCRIPT" 2>/dev/null)
   fi
 fi
+# A provider can fail after the agent has started a turn (for example VS Code's
+# `net::ERR_INCOMPLETE_CHUNKED_ENCODING`). In that case there may be no useful final
+# message, or the host may pass the error text through as the final message. Treat known
+# transient transport failures as retryable work: preserve the current iteration and
+# ask the host to retry the same step. Unknown failures remain fail-open.
+FAILED_TURN=0
+case "$HOOK_INPUT $LAST" in
+  *"ERR_INCOMPLETE_CHUNKED_ENCODING"*|*"Please check your firewall rules and network connection"*|*"Sorry, your request failed"*|*"[System: Empty message content sanitised"*)
+    FAILED_TURN=1 ;;
+esac
+if [ "$FAILED_TURN" = "1" ]; then
+  RETRY_MAX="${AMIR_LOOP_RETRY_MAX:-3}"
+  case "$RETRY_MAX" in ''|*[!0-9]*) RETRY_MAX=3 ;; esac
+  RETRIES=$(cat "$RETRY_FILE" 2>/dev/null)
+  case "$RETRIES" in ''|*[!0-9]*) RETRIES=0 ;; esac
+  if [ "$RETRIES" -ge "$RETRY_MAX" ]; then
+    rm -f "$RETRY_FILE"
+    allow_stop
+  fi
+  RETRIES=$((RETRIES + 1))
+  printf '%s\n' "$RETRIES" > "$RETRY_FILE" 2>/dev/null || true
+  RETRY_PROMPT="The previous attempt failed with a transient provider or network error. Retry the same concrete step now (attempt $RETRIES of $RETRY_MAX). Do not output <promise>$GOAL</promise> for this failed attempt; only finish after a successful, verified result. If the error persists after the retry budget, report the failure clearly and continue with any offline work available."
+  if [ -n "$TURN_ID" ]; then
+    "$JQ" -n --arg prompt "$RETRY_PROMPT" \
+          --arg msg "Amir Loop retry $RETRIES/$RETRY_MAX | transient provider/network failure" \
+          '{decision: "block", reason: $prompt, systemMessage: $msg}'
+  else
+    "$JQ" -n --arg prompt "$RETRY_PROMPT" \
+          --arg msg "Amir Loop retry $RETRIES/$RETRY_MAX | transient provider/network failure" \
+          '{decision: "block", reason: $prompt, systemMessage: $msg,
+            hookSpecificOutput: {hookEventName: "Stop", decision: "block", reason: $prompt}}'
+  fi
+  exit 0
+fi
+rm -f "$RETRY_FILE"
 [ -n "$LAST" ] || allow_stop
 
 if [ -n "$GOAL" ] && [ "$GOAL" != "null" ]; then
