@@ -83,3 +83,26 @@ EOF
   [ "$status" -eq 0 ]
   ! echo "$output" | grep -q 'FAIL:.*ralph-loop'
 }
+
+@test "doctor warns about a configured Codex notify hook without changing it" {
+  config="$BATS_TEST_TMPDIR/codex-config.toml"
+  printf 'notify = ["codex-computer-use.exe", "turn-ended"]\nmodel = "gpt-5.6-sol"\n' > "$config"
+  export AMIR_LOOP_CODEX_CONFIG="$config"
+  run bash "$DOCTOR"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q 'warn:.*Codex notify hook configured'
+  grep -q '^notify = ' "$config"
+}
+
+@test "doctor disable backs up and removes a single-line Codex notify hook" {
+  config="$BATS_TEST_TMPDIR/codex-config.toml"
+  printf 'notify = ["codex-computer-use.exe", "turn-ended"]\nmodel = "gpt-5.6-sol"\n' > "$config"
+  export AMIR_LOOP_CODEX_CONFIG="$config"
+  run bash "$DOCTOR" --disable-codex-notify
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q 'ok:.*disabled Codex notify hook'
+  ! grep -q '^notify = ' "$config"
+  backup_count=$(find "$BATS_TEST_TMPDIR" -name 'codex-config.toml.backup-amir-loop-*' | wc -l)
+  [ "$backup_count" -eq 1 ]
+  grep -q '^notify = ' "$BATS_TEST_TMPDIR"/codex-config.toml.backup-amir-loop-*
+}
