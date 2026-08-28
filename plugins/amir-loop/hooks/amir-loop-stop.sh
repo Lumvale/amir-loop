@@ -37,6 +37,11 @@
 
 set -uo pipefail
 
+# The Stop hook must never turn an internal shell error into a host error. The
+# launcher also fails open, but this covers direct Bash execution on Codex/Linux
+# and protects against future paths that return non-zero unexpectedly.
+trap 'exit 0' ERR
+
 allow_stop() { exit 0; }
 
 # --claude-code: the install shape for ~/.claude/settings.json. It means two things:
