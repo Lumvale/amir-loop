@@ -6,7 +6,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/amir-loop-stop.sh\""
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/amir-loop-stop.sh\"",
+            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$env:PLUGIN_ROOT\\hooks\\amir-loop-stop.ps1\"",
+            "timeout": 30,
+            "statusMessage": "Checking Amir Loop"
           }
         ]
       }

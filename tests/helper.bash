@@ -34,3 +34,14 @@ run_hook() {
   jq -n --arg cwd "$BATS_TEST_TMPDIR" --arg session "s1" --arg tp "${TRANSCRIPT:-}" \
     '{cwd: $cwd, session_id: $session, transcript_path: $tp}' | bash "$HOOK" "$@"
 }
+
+# Codex exposes the final message and turn identity directly. Its transcript is an
+# explicitly unstable convenience surface, so parity tests must not depend on its shape.
+run_codex_hook() {
+  jq -n --arg cwd "$BATS_TEST_TMPDIR" --arg session "s1" \
+    --arg turn "${CODEX_TURN_ID:-turn-1}" \
+    --arg last "${CODEX_LAST_ASSISTANT:-work remains}" \
+    '{cwd: $cwd, session_id: $session, transcript_path: null, turn_id: $turn,
+      last_assistant_message: $last, stop_hook_active: false, model: "gpt-5.6-sol"}' |
+    bash "$HOOK" "$@"
+}

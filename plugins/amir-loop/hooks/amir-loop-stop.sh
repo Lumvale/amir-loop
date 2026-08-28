@@ -12,7 +12,12 @@
 # so the grep found nothing, the plugin took its "no assistant messages" branch, deleted
 # the state file and allowed the stop - on the very first arm, every time.
 #
-# This file is deliberately independent: it works in both hosts, and it cannot be broken
+# Codex supplies the same cwd/session/transcript fields plus last_assistant_message and
+# turn_id. Prefer those stable fields there: Codex explicitly does not promise that its
+# transcript JSON format is stable. The top-level decision/reason output below is also
+# Codex's native Stop-continuation shape.
+#
+# This file is deliberately independent: it works in all three hosts, and it cannot be broken
 # by a marketplace plugin being updated or withdrawn. It does NOT interoperate with
 # /ralph-loop, which writes a differently-named state file this hook ignores.
 #
@@ -79,6 +84,8 @@ fi
 
 SESSION=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.session_id // "nosession"' 2>/dev/null)
 TRANSCRIPT=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.transcript_path // empty' 2>/dev/null)
+TURN_ID=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.turn_id // empty' 2>/dev/null)
+LAST_ASSISTANT=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.last_assistant_message // empty' 2>/dev/null)
 
 # A VS Code session is identifiable from the payload itself - its transcripts live under
 # GitHub.copilot-chat - so no environment sniffing is needed. In that host the `amir`
@@ -167,12 +174,30 @@ user_turns() {
 # spoken since, that is a new request and the loop is allowed to arm again.
 if [ -f "$MARKER" ]; then
   MARKED_AT=$(cat "$MARKER" 2>/dev/null)
-  case "$MARKED_AT" in ''|*[!0-9]*) MARKED_AT=999999 ;; esac
-  if [ "$(user_turns)" -gt "$MARKED_AT" ] 2>/dev/null; then
-    rm -f "$MARKER"
-  else
-    allow_stop
-  fi
+  case "$MARKED_AT" in
+    turn:*)
+      # Codex gives every user request a stable turn_id. The same id means this is
+      # another Stop evaluation for the completed turn; a different id is a new request.
+      if [ -n "$TURN_ID" ] && [ "$MARKED_AT" = "turn:$TURN_ID" ]; then
+        allow_stop
+      fi
+      rm -f "$MARKER"
+      ;;
+    *)
+      # A numeric marker is the Claude/Copilot human-turn count. If this invocation is
+      # Codex, switch marker schemes rather than trying to parse Codex's unstable transcript.
+      if [ -n "$TURN_ID" ]; then
+        rm -f "$MARKER"
+      else
+        case "$MARKED_AT" in ''|*[!0-9]*) MARKED_AT=999999 ;; esac
+        if [ "$(user_turns)" -gt "$MARKED_AT" ] 2>/dev/null; then
+          rm -f "$MARKER"
+        else
+          allow_stop
+        fi
+      fi
+      ;;
+  esac
 fi
 
 MAX_ITER="${AMIR_LOOP_MAX:-1000}"
@@ -247,24 +272,36 @@ case "$LIMIT" in ''|*[!0-9]*) rm -f "$STATE"; allow_stop ;; esac
 
 # Stamp the marker with the human turn count at the moment the loop ended, so the next
 # human message re-enables arming (see the marker check above).
-finish() { rm -f "$STATE"; user_turns > "$MARKER" 2>/dev/null; exit 0; }
+finish() {
+  rm -f "$STATE"
+  if [ -n "$TURN_ID" ]; then
+    printf 'turn:%s\n' "$TURN_ID" > "$MARKER" 2>/dev/null
+  else
+    user_turns > "$MARKER" 2>/dev/null
+  fi
+  exit 0
+}
 
 # Turn cap reached -> a legitimate end.
 [ "$LIMIT" -gt 0 ] && [ "$ITER" -ge "$LIMIT" ] && finish
 
 # --- completion promise ------------------------------------------------------------
-# If the transcript cannot be read we allow the stop WITHOUT the marker, so the next turn
-# can arm again - an unreadable transcript is not a finished task.
-[ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ] || allow_stop
+# Codex provides last_assistant_message as a stable Stop-hook field. Claude and Copilot
+# currently require transcript parsing. If neither source is available, allow the stop
+# WITHOUT the marker so the next turn can arm again - unreadable input is not completion.
+LAST="$LAST_ASSISTANT"
 
-# Slurp and take the last NON-EMPTY message. Two traps, both of which read as "unreadable":
+# Slurp and take the last NON-EMPTY transcript message. Two traps, both of which read as "unreadable":
 #   1. message text is MULTI-LINE, so a per-line `tail -1` returns the last LINE, not the
 #      last message;
 #   2. the final assistant.message is routinely a tool-only turn with content "", so a
 #      plain `last` is empty.
-LAST=$("$JQ" -rs '[.[] | select(.type=="assistant.message") | .data.content // "" | select(length>0)] | last // empty' "$TRANSCRIPT" 2>/dev/null)
 if [ -z "$LAST" ]; then
-  LAST=$("$JQ" -rs '[.[] | select(.message.role=="assistant") | ([.message.content[]? | select(.type=="text") | .text] | join("\n")) | select(length>0)] | last // empty' "$TRANSCRIPT" 2>/dev/null)
+  [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ] || allow_stop
+  LAST=$("$JQ" -rs '[.[] | select(.type=="assistant.message") | .data.content // "" | select(length>0)] | last // empty' "$TRANSCRIPT" 2>/dev/null)
+  if [ -z "$LAST" ]; then
+    LAST=$("$JQ" -rs '[.[] | select(.message.role=="assistant") | ([.message.content[]? | select(.type=="text") | .text] | join("\n")) | select(length>0)] | last // empty' "$TRANSCRIPT" 2>/dev/null)
+  fi
 fi
 [ -n "$LAST" ] || allow_stop
 
@@ -303,8 +340,18 @@ step, and never straight after an empty or failed turn. If turns are failing, sa
 failing."
 fi
 
-# Emit BOTH shapes. Claude Code reads decision/reason at the TOP LEVEL; VS Code Copilot
-# Chat reads them from a NESTED hookSpecificOutput and ignores the top-level pair:
+# Codex consumes only the top-level Stop continuation shape. Do not also send Copilot's
+# nested block shape there: two continuation decisions in one Codex result can race the
+# host's internal continuation-turn creation.
+if [ -n "$TURN_ID" ]; then
+  "$JQ" -n --arg prompt "$PROMPT_TEXT" \
+        --arg msg "Amir Loop iteration $NEXT/$LIMIT | to stop: output <promise>$GOAL</promise> (only when it is TRUE)" \
+        '{decision: "block", reason: $prompt, systemMessage: $msg}'
+  exit 0
+fi
+
+# Emit both legacy host shapes. Claude Code reads decision/reason at the TOP LEVEL; VS
+# Code Copilot Chat reads them from a NESTED hookSpecificOutput and ignores the top-level pair:
 #     let d = l.hookSpecificOutput;  d?.decision === "block" && d.reason && reasons.add(...)
 # and then continues only when `shouldContinue && reasons.length`. Emitting only the
 # top-level form is why the loop displayed its message but never actually continued a VS

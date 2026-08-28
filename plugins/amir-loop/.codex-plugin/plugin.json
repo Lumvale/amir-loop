@@ -1,0 +1,33 @@
+{
+  "name": "amir-loop",
+  "version": "1.0.0+codex.20260828093516",
+  "description": "Keeps Claude Code, VS Code Copilot Chat, and Codex sessions moving until the work is genuinely exhausted, with turn and calendar bounds.",
+  "author": {
+    "name": "Lumvale",
+    "email": "amir@lumvale.com",
+    "url": "https://github.com/Lumvale"
+  },
+  "homepage": "https://github.com/Lumvale/amir-loop",
+  "repository": "https://github.com/Lumvale/amir-loop",
+  "keywords": [
+    "autonomy",
+    "codex",
+    "stop-hook",
+    "agent-loop"
+  ],
+  "interface": {
+    "displayName": "Amir Loop",
+    "shortDescription": "Continue agent work until it is genuinely exhausted",
+    "longDescription": "A bounded Stop-hook loop for Claude Code, VS Code Copilot Chat, and Codex. It continues the current task until completion is verified, an iteration cap is reached, or the calendar window expires.",
+    "developerName": "Lumvale",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/Lumvale/amir-loop",
+    "defaultPrompt": [
+      "Continue this work with Amir Loop until it is exhausted."
+    ]
+  }
+}
