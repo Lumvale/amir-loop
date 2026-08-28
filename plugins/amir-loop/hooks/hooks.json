@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "C:/PROGRA~1/Git/bin/bash.exe C:/lumvale/lumvale-docs/engineering/autonomous-stack/files/amir-plugin/scripts/amir-loop-stop.sh"
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/amir-loop-stop.sh\""
           }
         ]
       }

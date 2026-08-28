@@ -1,0 +1,3 @@
+{"type":"user.message","data":{"content":"start the work"},"id":1,"timestamp":1}
+{"type":"assistant.message","data":{"content":"line one\nline two"},"id":2,"timestamp":2}
+{"type":"assistant.message","data":{"content":""},"id":3,"timestamp":3}
