@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "lumvale",
+  "description": "Lumvale internal tooling",
+  "owner": { "name": "Amir", "email": "amir@lumvale.com" },
+  "plugins": [
+    {
+      "name": "amir-loop",
+      "description": "Keeps an agent session going until the work is genuinely exhausted, bounded by a per-session turn cap and a calendar window. Works in Claude Code and VS Code Copilot Chat.",
+      "author": { "name": "Amir", "email": "amir@lumvale.com" },
+      "source": "./plugins/amir-loop",
+      "category": "development"
+    }
+  ]
+}
