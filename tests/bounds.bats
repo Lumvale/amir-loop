@@ -65,28 +65,40 @@ load helper
   # you compare it to. This test forces that failure mode by stubbing `date` to
   # reject `-d` the way BSD/macOS date does, so the only way to reach "block" is
   # through the hook's `-j -f` fallback branch actually converting the date.
+  #
+  # This only makes sense where GNU date exists to be stubbed out: on real BSD/macOS
+  # there is no GNU date underneath for the stub to fall back on, and the test above
+  # ("far in the future permits continuation") already exercises the native `-j -f`
+  # fallback directly on that platform. So skip here rather than fake a GNU binary.
+  if ! date -d 2099-01-01 +%s >/dev/null 2>&1; then
+    skip "no GNU 'date -d' on this platform to stub out; the native -j -f fallback is already exercised by 'AMIR_LOOP_UNTIL far in the future permits continuation'"
+  fi
+  REAL_DATE=$(command -v date)
+
   use_fixture vscode-copilot.jsonl
   arm_state 1 10
   STUBDIR="$BATS_TEST_TMPDIR/stubdate"
   mkdir -p "$STUBDIR"
-  cat > "$STUBDIR/date" <<'EOF'
+  cat > "$STUBDIR/date" <<EOF
 #!/bin/bash
-# Reject -d like BSD/macOS date, forcing the hook onto its `-j -f` fallback.
-# There is no macOS box in this runner, so emulate that fallback's semantics
-# using the real GNU date underneath, purely to prove the fallback branch -
-# not "invalid -> expired" - is what produced the result.
-if [ "$1" = "-d" ]; then
+# Reject -d like BSD/macOS date, forcing the hook onto its \`-j -f\` fallback.
+# This box has GNU date (checked above), so emulate the BSD fallback's
+# semantics using the real GNU date underneath - found by PATH lookup at test
+# setup, not a hardcoded location - purely to prove the fallback branch, not
+# "invalid -> expired", is what produced the result.
+REAL_DATE="$REAL_DATE"
+if [ "\$1" = "-d" ]; then
   echo "stub-date: -d rejected (simulating BSD/macOS)" >&2
   exit 1
 fi
-if [ "$1" = "-j" ] && [ "$2" = "-f" ]; then
-  fmt="$3"; val="$4"; outfmt="$5"
-  case "$fmt" in
-    "%Y-%m-%d %H:%M:%S") exec /usr/bin/date -d "$val" "$outfmt" ;;
-    *) echo "stub-date: unexpected -j -f format: $fmt" >&2; exit 1 ;;
+if [ "\$1" = "-j" ] && [ "\$2" = "-f" ]; then
+  fmt="\$3"; val="\$4"; outfmt="\$5"
+  case "\$fmt" in
+    "%Y-%m-%d %H:%M:%S") exec "\$REAL_DATE" -d "\$val" "\$outfmt" ;;
+    *) echo "stub-date: unexpected -j -f format: \$fmt" >&2; exit 1 ;;
   esac
 fi
-exec /usr/bin/date "$@"
+exec "\$REAL_DATE" "\$@"
 EOF
   chmod +x "$STUBDIR/date"
 

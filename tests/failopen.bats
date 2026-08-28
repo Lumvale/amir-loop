@@ -21,6 +21,11 @@ load helper
   # (ln -s: Operation not permitted / Function not implemented) rather than
   # skip. `cp` works identically on Linux, macOS, and Windows/Git Bash, and the
   # cost - a slower, larger scratch dir - only pays once per test run.
+  #
+  # No `-p`: preserving mode/ownership makes `cp` fail on macOS when copying
+  # root-owned system binaries as a non-root user. We only need the copies to
+  # be executable in the scratch dir, not to keep their original ownership, so
+  # copy plain and force the executable bit ourselves.
   NOJQ="$BATS_TEST_TMPDIR/nojq"
   mkdir -p "$NOJQ"
   IFS=':' read -ra _dirs <<< "$PATH"
@@ -31,7 +36,9 @@ load helper
       [ -d "$f" ] && continue
       base=$(basename "$f")
       [ "$base" = "jq" ] && continue
-      [ -e "$NOJQ/$base" ] || cp -p "$f" "$NOJQ/$base" 2>/dev/null
+      if [ ! -e "$NOJQ/$base" ] && cp "$f" "$NOJQ/$base" 2>/dev/null; then
+        chmod +x "$NOJQ/$base" 2>/dev/null
+      fi
     done
   done
   rm -f "$NOJQ/jq"
