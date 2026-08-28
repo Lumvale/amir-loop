@@ -1,6 +1,6 @@
 {
   "name": "amir-loop",
   "version": "1.0.0",
-  "description": "Lumvale autonomy tooling. Amir Loop keeps an agent session going until the work is genuinely done, bounded by a per-session turn cap and a calendar window. Works in both VS Code Copilot Chat and Claude Code, and depends on no marketplace plugin.",
+  "description": "Lumvale autonomy tooling. Amir Loop keeps an agent session going until the work is genuinely done, bounded by a per-session turn cap and a calendar window. Works in VS Code Copilot Chat, Claude Code, and Codex, and depends on no third-party marketplace plugin.",
   "author": { "name": "Amir", "email": "amir@lumvale.com" }
 }

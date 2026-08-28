@@ -151,3 +151,44 @@ EOF
   AMIR_LOOP_AUTOARM=0 run run_hook
   [ "$(echo "$output" | jq -r '.decision')" = "block" ]
 }
+
+@test "Codex continues from last_assistant_message without parsing a transcript" {
+  arm_state 1 10
+  CODEX_LAST_ASSISTANT="there is more work" run run_codex_hook
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput // empty')" = "" ]
+}
+
+@test "Codex completion promise finishes without parsing a transcript" {
+  arm_state 1 10
+  CODEX_LAST_ASSISTANT="verified <promise>AMIR LOOP COMPLETE</promise>" run run_codex_hook
+  [ "$status" -eq 0 ]; [ -z "$output" ]
+  [ ! -f "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md" ]
+  [ "$(cat "$BATS_TEST_TMPDIR/.claude/.amir-loop-done-s1")" = "turn:turn-1" ]
+}
+
+@test "Codex completion marker suppresses re-arm in the completed turn" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  echo "turn:turn-1" > "$BATS_TEST_TMPDIR/.claude/.amir-loop-done-s1"
+  CODEX_TURN_ID="turn-1" run run_codex_hook
+  [ "$status" -eq 0 ]; [ -z "$output" ]
+  [ ! -f "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md" ]
+}
+
+@test "Codex completion marker re-arms on a new user turn" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  echo "turn:turn-1" > "$BATS_TEST_TMPDIR/.claude/.amir-loop-done-s1"
+  CODEX_TURN_ID="turn-2" run run_codex_hook
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+  [ ! -f "$BATS_TEST_TMPDIR/.claude/.amir-loop-done-s1" ]
+}
+
+@test "Codex Windows hook expands PLUGIN_ROOT with PowerShell syntax" {
+  local hooks="$BATS_TEST_DIRNAME/../plugins/amir-loop/hooks/hooks.json"
+  run jq -r '.hooks.Stop[0].hooks[0].commandWindows' "$hooks"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'$env:PLUGIN_ROOT'* ]]
+  [[ "$output" != *'%PLUGIN_ROOT%'* ]]
+}

@@ -6,9 +6,10 @@ every stop, feeding the same prompt back so the agent picks up where it left off
 it is bounded on two independent axes: a per-session turn cap and a calendar window.
 The loop ends when either bound trips, or when the agent emits
 `<promise>AMIR LOOP COMPLETE</promise>` after concluding there is truly nothing left
-to advance. Its distinguishing property is that it runs in **both** Claude Code and
-VS Code Copilot Chat: it emits the block decision in each host's own shape and reads
-each host's own transcript format, rather than assuming Claude Code's.
+to advance. Its distinguishing property is that it runs in **Claude Code, VS Code
+Copilot Chat, and Codex**: it emits the block decision in each host's own shape and
+uses each host's stable final-message surface rather than assuming Claude Code's
+transcript format.
 
 ## Install
 
@@ -37,15 +38,28 @@ Amir Loop into a Desktop-launched session.
 
 Append the same git URL to `chat.plugins.marketplaces` in your VS Code settings.
 
+### Codex
+
+Add this repository as a Codex marketplace, then install the plugin:
+
+```text
+codex plugin marketplace add Lumvale/amir-loop
+codex plugin add amir-loop@lumvale
+```
+
+Start a new task after installation, open `/hooks`, and trust the Amir Loop hook when
+prompted. Codex hashes hook definitions, so a changed hook must be reviewed again before
+it runs. The hook works in the Codex CLI, Codex IDE extension, and Codex desktop task
+surfaces that run the local Codex lifecycle.
+
 ## Windows prerequisite
 
-`hooks.json` invokes `bash "${CLAUDE_PLUGIN_ROOT}/hooks/amir-loop-stop.sh"`, so `bash`
-must resolve on PATH. On Windows this means the Git for Windows install directory's
-`bin` folder — typically under `Program Files\Git\bin` — needs to be on PATH. Run
-`/amir-loop-doctor` to check this precisely; it reports the resolved `bash` binary and
-version. Note that doctor itself only runs at all once `bash` is already resolvable, so
-it cannot diagnose a missing `bash` from inside itself — if `/amir-loop-doctor` (or the
-hook) doesn't run at all, that in itself means `bash` isn't on PATH.
+Claude and Copilot invoke `bash "${CLAUDE_PLUGIN_ROOT}/hooks/amir-loop-stop.sh"`, so
+`bash` must resolve on PATH for those hosts. On Windows this means the Git for Windows
+install directory's `bin` folder — typically under `Program Files\Git\bin` — needs to
+be on PATH. Codex uses the bundled PowerShell launcher instead; it locates Git Bash next
+to the active `git.exe`, avoiding accidental resolution to WSL's `bash.exe`. Run
+`/amir-loop-doctor` to check the Claude/Copilot path precisely.
 
 ## Commands
 
@@ -103,9 +117,11 @@ an independent implementation because `ralph-wiggum` greps the transcript for
 `"role":"assistant"`, which is Claude Code's transcript format. VS Code Copilot Chat
 writes a different shape entirely, so `ralph-wiggum` found no assistant messages,
 took its "nothing to do" branch, and deleted its own state file on the very first arm,
-every time, in that host. Amir Loop's hook reads both transcript formats and emits
-the block decision in both hosts' shapes, which is the reason it exists as its own
-plugin rather than a fork. This history is documented in the header comment of
+every time, in that host. Amir Loop reads Claude and Copilot transcripts, while Codex's
+adapter consumes the stable `last_assistant_message` Stop-hook field because Codex's
+transcript format is explicitly not a stable interface. It emits each host's required
+block shape, which is the reason it exists as its own plugin rather than a fork. This
+history is documented in the header comment of
 `plugins/amir-loop/hooks/amir-loop-stop.sh`.
 
 ## Development
@@ -116,7 +132,7 @@ Tests are written with [bats](https://github.com/bats-core/bats-core):
 bats tests/
 ```
 
-45 tests across 5 suites (`bounds`, `doctor`, `failopen`, `invariants`, `status`).
+53 tests across 6 suites (`bounds`, `doctor`, `failopen`, `invariants`, `parity`, `status`).
 CI runs this suite on a 3-OS matrix (Ubuntu, macOS, Windows) on every push and pull
 request.
 

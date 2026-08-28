@@ -1,0 +1,20 @@
+{
+  "name": "lumvale",
+  "interface": {
+    "displayName": "Lumvale"
+  },
+  "plugins": [
+    {
+      "name": "amir-loop",
+      "source": {
+        "source": "local",
+        "path": "./plugins/amir-loop"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
