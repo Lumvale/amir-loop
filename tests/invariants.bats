@@ -226,7 +226,7 @@ EOF
   local hooks="$BATS_TEST_DIRNAME/../plugins/amir-loop/hooks/hooks.json"
   run jq -r '.hooks.Stop[0].hooks[0].command' "$hooks"
   [ "$status" -eq 0 ]
-  [[ "$output" == *'[ -n \"$root\" ] || exit 0'* ]]
+  [[ "$output" == *'printenv CLAUDE_PLUGIN_ROOT PLUGIN_ROOT CODEX_PLUGIN_ROOT'* ]]
   [[ "$output" != *'exec bash'* ]]
 }
 
@@ -234,7 +234,7 @@ EOF
   local hooks="$BATS_TEST_DIRNAME/../plugins/amir-loop/hooks/hooks.json"
   run jq -r '.hooks.Stop[0].hooks[0].command' "$hooks"
   [ "$status" -eq 0 ]
-  [[ "$output" == *'$CLAUDE_PLUGIN_ROOT'* ]]
-  [[ "$output" == *'powershell.exe'* ]]
+  [[ "$output" == *'printenv CLAUDE_PLUGIN_ROOT PLUGIN_ROOT CODEX_PLUGIN_ROOT'* ]]
+  [[ "$output" == *'bash {}/hooks/amir-loop-stop.sh'* ]]
   [[ "$output" != *'${CLAUDE_PLUGIN_ROOT}'* ]]
 }

@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -lc 'root=\"$CLAUDE_PLUGIN_ROOT\"; [ -n \"$root\" ] || root=\"$PLUGIN_ROOT\"; [ -n \"$root\" ] || root=\"$CODEX_PLUGIN_ROOT\"; [ -n \"$root\" ] || exit 0; case \"$root\" in [A-Za-z]:*) powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$root/hooks/amir-loop-stop.ps1\" ;; *) bash \"$root/hooks/amir-loop-stop.sh\" ;; esac'",
+            "command": "bash -lc 'printenv CLAUDE_PLUGIN_ROOT PLUGIN_ROOT CODEX_PLUGIN_ROOT | head -n 1 | xargs -r -I{} bash {}/hooks/amir-loop-stop.sh'",
             "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$env:PLUGIN_ROOT\\hooks\\amir-loop-stop.ps1\"",
             "timeout": 30,
             "statusMessage": "Checking Amir Loop"
