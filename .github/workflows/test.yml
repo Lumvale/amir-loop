@@ -1,0 +1,47 @@
+name: tests
+on: [push, pull_request]
+jobs:
+  bats:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install bats
+        run: |
+          git clone --depth 1 https://github.com/bats-core/bats-core /tmp/bats
+          echo "/tmp/bats/bin" >> "$GITHUB_PATH"
+      - name: Assert LF line endings on scripts
+        run: |
+          ! grep -rlU $'\r' --include='*.sh' --include='*.bats' . || {
+            echo "CRLF found - .gitattributes eol=lf is not holding"; exit 1; }
+      - name: Assert no absolute paths
+        run: |
+          ! grep -rnE 'C:/|C:\\\\|/home/[a-z]+/|PROGRA~1' --include='*.json' --include='*.sh' --include='*.md' .
+      - name: Assert vendored jq executes on this platform
+        run: |
+          vendor="plugins/amir-loop/vendor/jq"
+          case "$(uname -s 2>/dev/null)" in
+            Linux)   bin="$vendor/jq-linux-amd64" ;;
+            Darwin)  case "$(uname -m 2>/dev/null)" in
+                       arm64) bin="$vendor/jq-macos-arm64" ;;
+                       *)     bin="$vendor/jq-macos-amd64" ;;
+                     esac ;;
+            MINGW*|MSYS*|CYGWIN*) bin="$vendor/jq-windows-amd64.exe" ;;
+            *) echo "FAIL: unrecognized platform $(uname -s 2>/dev/null)"; exit 1 ;;
+          esac
+          chmod +x "$bin" 2>/dev/null || true
+          out="$("$bin" --version 2>&1)" || {
+            echo "FAIL on platform $(uname -s 2>/dev/null) ($(uname -m 2>/dev/null)): vendored jq at $bin failed to execute: $out"
+            exit 1
+          }
+          case "$out" in
+            *jq-1.8.1*) echo "OK: $bin reports $out on $(uname -s 2>/dev/null) ($(uname -m 2>/dev/null))" ;;
+            *) echo "FAIL on platform $(uname -s 2>/dev/null) ($(uname -m 2>/dev/null)): expected jq-1.8.1, got: $out"; exit 1 ;;
+          esac
+      - run: bats tests/
