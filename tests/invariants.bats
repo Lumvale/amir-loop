@@ -192,3 +192,11 @@ EOF
   [[ "$output" == *'$env:PLUGIN_ROOT'* ]]
   [[ "$output" != *'%PLUGIN_ROOT%'* ]]
 }
+
+@test "generic hook command reads Codex plugin root at runtime" {
+  local hooks="$BATS_TEST_DIRNAME/../plugins/amir-loop/hooks/hooks.json"
+  run jq -r '.hooks.Stop[0].hooks[0].command' "$hooks"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'$CODEX_PLUGIN_ROOT'* ]]
+  [[ "$output" != *'${CLAUDE_PLUGIN_ROOT}'* ]]
+}
