@@ -20,13 +20,14 @@ ok "bash ${BASH_VERSION%%(*} at $(command -v bash)"
 _vendor="$(cd "$(dirname "$0")/.." && pwd)/vendor/jq"
 case "$(uname -s 2>/dev/null)" in
   Linux)  _cand="$_vendor/jq-linux-amd64" ;;
-  Darwin) case "$(uname -m)" in arm64) _cand="$_vendor/jq-macos-arm64";; *) _cand="$_vendor/jq-macos-amd64";; esac ;;
+  Darwin) case "$(uname -m 2>/dev/null)" in arm64) _cand="$_vendor/jq-macos-arm64";; *) _cand="$_vendor/jq-macos-amd64";; esac ;;
   MINGW*|MSYS*|CYGWIN*) _cand="$_vendor/jq-windows-amd64.exe" ;;
   *) _cand="" ;;
 esac
 if [ -n "$_cand" ] && [ -x "$_cand" ]; then ok "jq  vendored ($_cand)"
 elif command -v jq >/dev/null 2>&1;   then warn "jq  from PATH ($(command -v jq)) - vendored binary missing for this platform"
-else fail "jq  not found - the loop will allow every stop and appear broken"
+elif [ -n "$_cand" ] && [ -e "$_cand" ]; then fail "jq  vendored binary present but not executable ($_cand) - chmod +x it, or install jq on PATH"
+else fail "jq  not found - no vendored binary for this platform and none on PATH - the loop will allow every stop and appear broken"
 fi
 
 # --- Windows-only path translation ---
