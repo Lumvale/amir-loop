@@ -222,6 +222,14 @@ EOF
   [[ "$output" != *'${CLAUDE_PLUGIN_ROOT}'* ]]
 }
 
+@test "generic hook launcher fails open when no plugin root is provided" {
+  local hooks="$BATS_TEST_DIRNAME/../plugins/amir-loop/hooks/hooks.json"
+  run jq -r '.hooks.Stop[0].hooks[0].command' "$hooks"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'[ -n \"$root\" ] || exit 0'* ]]
+  [[ "$output" != *'exec bash'* ]]
+}
+
 @test "generic hook command reads the plugin root at runtime on Windows" {
   local hooks="$BATS_TEST_DIRNAME/../plugins/amir-loop/hooks/hooks.json"
   run jq -r '.hooks.Stop[0].hooks[0].command' "$hooks"
