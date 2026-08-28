@@ -43,7 +43,9 @@ Append the same git URL to `chat.plugins.marketplaces` in your VS Code settings.
 must resolve on PATH. On Windows this means the Git for Windows install directory's
 `bin` folder — typically under `Program Files\Git\bin` — needs to be on PATH. Run
 `/amir-loop-doctor` to check this precisely; it reports the resolved `bash` binary and
-version, or fails with the exact reason `bash` could not be found.
+version. Note that doctor itself only runs at all once `bash` is already resolvable, so
+it cannot diagnose a missing `bash` from inside itself — if `/amir-loop-doctor` (or the
+hook) doesn't run at all, that in itself means `bash` isn't on PATH.
 
 ## Commands
 

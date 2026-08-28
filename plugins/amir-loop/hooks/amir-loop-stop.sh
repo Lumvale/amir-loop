@@ -59,7 +59,7 @@ case "$(uname -s 2>/dev/null)" in
   MINGW*|MSYS*|CYGWIN*) _cand="$_vendor/jq-windows-amd64.exe" ;;
   *) _cand="" ;;
 esac
-if [ -n "$_cand" ] && [ -x "$_cand" ]; then
+if [ -n "$_cand" ] && "$_cand" --version >/dev/null 2>&1; then
   JQ="$_cand"
 elif command -v jq >/dev/null 2>&1; then
   JQ="jq"

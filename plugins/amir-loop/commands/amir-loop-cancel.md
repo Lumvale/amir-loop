@@ -16,4 +16,4 @@ Both steps matter. Deleting the state file alone would not be enough: the Stop h
 loop automatically on the next turn, so the loop would simply come back. The off-switch file is
 what makes a cancel actually stick.
 
-Re-enable by running `/amir loop` again, or by deleting `.claude/amir-loop-off`.
+Re-enable by running `/amir-loop` again, or by deleting `.claude/amir-loop-off`.

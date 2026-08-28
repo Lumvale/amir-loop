@@ -19,8 +19,13 @@ PROMISE="AMIR LOOP COMPLETE"
 CANCEL=0
 PARTS=()
 
+LITERAL=0
 while [ $# -gt 0 ]; do
+  if [ "$LITERAL" = "1" ]; then
+    PARTS+=("$1"); shift; continue
+  fi
   case "$1" in
+    --) LITERAL=1; shift ;;
     --cancel) CANCEL=1; shift ;;
     --max-iterations)
       case "${2:-}" in
@@ -38,9 +43,23 @@ done
 
 STATE=".claude/amir-loop.local.md"
 OFF=".claude/amir-loop-off"
-PRINCIPLES=".claude/amir-loop-principles.md"
 
 mkdir -p .claude 2>/dev/null || { echo "error: cannot create .claude here" >&2; exit 1; }
+
+# Same project-scoped standing orders the Stop hook appends, resolved the same way:
+# searched from CWD upwards, like .gitignore or .editorconfig. See amir-loop-stop.sh's
+# principles-resolution block for why this must climb rather than check CWD alone.
+PRINCIPLES=""
+_dir="$PWD"
+while [ -n "$_dir" ]; do
+  if [ -f "$_dir/.claude/amir-loop-principles.md" ]; then
+    PRINCIPLES="$_dir/.claude/amir-loop-principles.md"
+    break
+  fi
+  _parent=$(dirname "$_dir")
+  [ "$_parent" = "$_dir" ] && break
+  _dir="$_parent"
+done
 
 if [ "$CANCEL" = "1" ]; then
   rm -f "$STATE"

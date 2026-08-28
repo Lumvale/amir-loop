@@ -25,4 +25,4 @@ looks hard. If you are blocked, say what is blocking you and keep working.
 The loop also ends on its own when the iteration cap is reached, so there is never a need to
 fake completion to get out.
 
-To stop it deliberately, run `/amir cancel`.
+To stop it deliberately, run `/amir-loop-cancel`.

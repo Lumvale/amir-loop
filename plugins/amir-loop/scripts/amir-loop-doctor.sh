@@ -24,10 +24,18 @@ case "$(uname -s 2>/dev/null)" in
   MINGW*|MSYS*|CYGWIN*) _cand="$_vendor/jq-windows-amd64.exe" ;;
   *) _cand="" ;;
 esac
-if [ -n "$_cand" ] && [ -x "$_cand" ]; then ok "jq  vendored ($_cand)"
-elif command -v jq >/dev/null 2>&1;   then warn "jq  from PATH ($(command -v jq)) - vendored binary missing for this platform"
-elif [ -n "$_cand" ] && [ -e "$_cand" ]; then fail "jq  vendored binary present but not executable ($_cand) - chmod +x it, or install jq on PATH"
-else fail "jq  not found - no vendored binary for this platform and none on PATH - the loop will allow every stop and appear broken"
+if [ -n "$_cand" ] && "$_cand" --version >/dev/null 2>&1; then
+  ok "jq  vendored ($_cand)"
+elif [ -n "$_cand" ] && [ -e "$_cand" ]; then
+  if command -v jq >/dev/null 2>&1; then
+    warn "jq  vendored binary present but does not run on this platform ($_cand) - falling back to PATH jq ($(command -v jq))"
+  else
+    fail "jq  vendored binary present but does not run here ($_cand), and no jq on PATH - the loop will allow every stop and appear broken"
+  fi
+elif command -v jq >/dev/null 2>&1; then
+  warn "jq  from PATH ($(command -v jq)) - vendored binary missing for this platform"
+else
+  fail "jq  not found - no vendored binary for this platform and none on PATH - the loop will allow every stop and appear broken"
 fi
 
 # --- Windows-only path translation ---

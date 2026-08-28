@@ -39,7 +39,6 @@ jobs:
             MINGW*|MSYS*|CYGWIN*) bin="$vendor/jq-windows-amd64.exe" ;;
             *) echo "FAIL: unrecognized platform $(uname -s 2>/dev/null)"; exit 1 ;;
           esac
-          chmod +x "$bin" 2>/dev/null || true
           out="$("$bin" --version 2>&1)" || {
             echo "FAIL on platform $(uname -s 2>/dev/null) ($(uname -m 2>/dev/null)): vendored jq at $bin failed to execute: $out"
             exit 1
