@@ -17,10 +17,7 @@
     "configuration": {
       "title": "Amir Loop",
       "properties": {
-        "amirLoop.maxIterations": { "type": "number", "default": 1000, "description": "AMIR_LOOP_MAX - per-session turn cap." },
-        "amirLoop.days":          { "type": "number", "default": 5,    "description": "AMIR_LOOP_DAYS - calendar window from first arm. 0 = no deadline." },
-        "amirLoop.until":         { "type": "string", "default": "",   "description": "AMIR_LOOP_UNTIL - absolute YYYY-MM-DD deadline; overrides days." },
-        "amirLoop.off":           { "type": "boolean","default": false,"description": "AMIR_LOOP_OFF - kill switch." },
+        "amirLoop.maxIterations": { "type": "number", "default": 1000, "description": "Per-session turn cap passed as --max-iterations when starting a loop from Amir Loop: Start." },
         "amirLoop.pluginPath":    { "type": "string", "default": "",   "description": "Path to plugins/amir-loop. Leave blank to autodetect from the installed plugin." }
       }
     }

@@ -5,6 +5,8 @@ import {
   renderStatusBar,
   candidatePluginDirs,
   detectScriptsDir,
+  describeResolvedScripts,
+  validateMaxIterations,
   PLUGIN_PATH_HELP,
 } from '../src/status';
 
@@ -114,37 +116,73 @@ test('renderStatusBar: unknown surfaces the raw output rather than hiding it', (
   assert.match(r.tooltip, /bogus/);
 });
 
-// --- candidatePluginDirs / detectScriptsDir ---------------------------------
+// --- candidatePluginDirs / detectScriptsDir / describeResolvedScripts ------
 
-test('candidatePluginDirs: configured path takes priority and is included', () => {
+test('candidatePluginDirs: configured path takes priority, marked explicit', () => {
   const dirs = candidatePluginDirs({ configuredPluginPath: '/configured/amir-loop' });
-  assert.equal(dirs[0], '/configured/amir-loop');
+  assert.equal(dirs[0].dir, '/configured/amir-loop');
+  assert.equal(dirs[0].confidence, 'explicit');
+  assert.match(dirs[0].label, /amirLoop\.pluginPath/);
 });
 
-test('candidatePluginDirs: falls back through env, workspace, and home candidates', () => {
+test('candidatePluginDirs: CLAUDE_PLUGIN_ROOT is explicit; workspace/home fallbacks are guesses', () => {
   const dirs = candidatePluginDirs({
     envPluginRoot: '/env/amir-loop',
     workspaceRoot: '/ws',
     home: '/home/u',
   });
-  assert.ok(dirs.some((d) => d === '/env/amir-loop'));
-  assert.ok(dirs.some((d) => d.includes('/ws') && d.includes('plugins')));
-  assert.ok(dirs.some((d) => d.includes('/home/u')));
+  const env = dirs.find((d) => d.dir === '/env/amir-loop');
+  assert.equal(env?.confidence, 'explicit');
+  assert.match(env!.label, /CLAUDE_PLUGIN_ROOT/);
+
+  const workspaceGuesses = dirs.filter((d) => d.dir.startsWith('/ws'));
+  assert.ok(workspaceGuesses.length >= 1);
+  assert.ok(workspaceGuesses.every((d) => d.confidence === 'guess'));
+
+  const homeGuesses = dirs.filter((d) => d.dir.startsWith('/home/u'));
+  assert.ok(homeGuesses.length >= 1);
+  assert.ok(homeGuesses.every((d) => d.confidence === 'guess'));
 });
 
-test('detectScriptsDir: picks the first candidate whose scripts/amir-loop-status.sh exists', () => {
-  const dirs = ['/nope', '/yes', '/also-yes'];
-  const existing = new Set(['/yes/scripts/amir-loop-status.sh']);
+test('detectScriptsDir: picks the first candidate whose scripts/amir-loop-status.sh exists, and reports its label/confidence', () => {
+  const dirs = candidatePluginDirs({ workspaceRoot: '/ws' });
+  const wsPluginsDir = dirs.find((d) => d.dir.endsWith('plugins/amir-loop'))!.dir;
+  const existing = new Set([`${wsPluginsDir}/scripts/amir-loop-status.sh`]);
   const found = detectScriptsDir(dirs, (p) => existing.has(p));
-  assert.equal(found, '/yes/scripts');
+  assert.equal(found?.scriptsDir, `${wsPluginsDir}/scripts`);
+  assert.equal(found?.confidence, 'guess');
 });
 
 test('detectScriptsDir: returns undefined when nothing matches', () => {
-  const found = detectScriptsDir(['/nope'], () => false);
+  const found = detectScriptsDir([{ dir: '/nope', confidence: 'guess', label: '/nope' }], () => false);
   assert.equal(found, undefined);
+});
+
+test('describeResolvedScripts: explicit sources read as "Resolved from", guesses read as "Guessed at"', () => {
+  const explicit = describeResolvedScripts({ scriptsDir: '/a/scripts', confidence: 'explicit', label: 'the amirLoop.pluginPath setting' });
+  assert.match(explicit, /^Resolved from the amirLoop\.pluginPath setting: \/a\/scripts$/);
+
+  const guess = describeResolvedScripts({ scriptsDir: '/b/scripts', confidence: 'guess', label: '/b (global install guess)' });
+  assert.match(guess, /^Guessed at \/b \(global install guess\): \/b\/scripts$/);
 });
 
 test('PLUGIN_PATH_HELP: tells the user exactly what to set and to what kind of value', () => {
   assert.match(PLUGIN_PATH_HELP, /amirLoop\.pluginPath/);
   assert.match(PLUGIN_PATH_HELP, /scripts/);
+});
+
+// --- validateMaxIterations ---------------------------------------------------
+
+test('validateMaxIterations: accepts a positive whole number as-is', () => {
+  const r = validateMaxIterations(20);
+  assert.deepEqual(r, { value: 20 });
+});
+
+test('validateMaxIterations: rejects zero, negatives, non-integers, and non-numbers with a clear warning', () => {
+  for (const bad of [0, -5, 1.5, 'abc', undefined, null]) {
+    const r = validateMaxIterations(bad);
+    assert.equal(r.value, 1000);
+    assert.match(r.warning ?? '', /amirLoop\.maxIterations/);
+    assert.match(r.warning ?? '', /positive whole number/);
+  }
 });

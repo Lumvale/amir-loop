@@ -103,6 +103,15 @@ export function renderStatusBar(status: LoopStatus): StatusBarContent {
   }
 }
 
+export interface PluginCandidate {
+  /** Directory expected to contain a scripts/ subfolder. */
+  dir: string;
+  /** How confident this candidate is: an explicit source, or a guessed layout. */
+  confidence: 'explicit' | 'guess';
+  /** Human-readable name of the source, for display: "the amirLoop.pluginPath setting", etc. */
+  label: string;
+}
+
 /**
  * Builds the ordered list of directories to check for scripts/amir-loop-status.sh.
  * Pure: takes every input explicitly so it can be unit-tested without mocking
@@ -123,46 +132,114 @@ export function renderStatusBar(status: LoopStatus): StatusBarContent {
  *
  * This list is a best-effort guess, not a spec: Claude Code does not
  * document a single canonical install path across OS/version, so anything
- * beyond (1) and (2) is a guess about layouts we've actually seen. If none
- * of these exist, detectScriptsDir() returns undefined and the caller must
- * fall back to asking the user to set amirLoop.pluginPath explicitly.
+ * beyond (1) and (2) is a guess about layouts we've actually seen. Each
+ * candidate carries a `confidence` and a `label` so a caller that finds a
+ * match can tell the user not just where the scripts came from but how sure
+ * that choice is - explicit sources vs. a guessed layout warrant very
+ * different levels of trust. If none of these exist, detectScriptsDir()
+ * returns undefined and the caller must fall back to asking the user to set
+ * amirLoop.pluginPath explicitly.
  */
 export function candidatePluginDirs(opts: {
   configuredPluginPath?: string;
   envPluginRoot?: string;
   workspaceRoot?: string;
   home?: string;
-}): string[] {
-  const candidates: string[] = [];
-  if (opts.configuredPluginPath) { candidates.push(opts.configuredPluginPath); }
-  if (opts.envPluginRoot) { candidates.push(opts.envPluginRoot); }
+}): PluginCandidate[] {
+  const candidates: PluginCandidate[] = [];
+  if (opts.configuredPluginPath) {
+    candidates.push({ dir: opts.configuredPluginPath, confidence: 'explicit', label: 'the amirLoop.pluginPath setting' });
+  }
+  if (opts.envPluginRoot) {
+    candidates.push({ dir: opts.envPluginRoot, confidence: 'explicit', label: 'the CLAUDE_PLUGIN_ROOT environment variable' });
+  }
   if (opts.workspaceRoot) {
-    candidates.push(path.join(opts.workspaceRoot, 'plugins', 'amir-loop'));
-    candidates.push(path.join(opts.workspaceRoot, '.claude', 'plugins', 'amir-loop'));
+    candidates.push({
+      dir: path.join(opts.workspaceRoot, 'plugins', 'amir-loop'),
+      confidence: 'guess',
+      label: `${path.join(opts.workspaceRoot, 'plugins', 'amir-loop')} (workspace dev-checkout guess)`,
+    });
+    candidates.push({
+      dir: path.join(opts.workspaceRoot, '.claude', 'plugins', 'amir-loop'),
+      confidence: 'guess',
+      label: `${path.join(opts.workspaceRoot, '.claude', 'plugins', 'amir-loop')} (workspace install guess)`,
+    });
   }
   if (opts.home) {
-    candidates.push(path.join(opts.home, '.claude', 'plugins', 'amir-loop'));
-    candidates.push(path.join(opts.home, '.claude', 'plugins', 'marketplaces', 'lumvale', 'amir-loop'));
+    candidates.push({
+      dir: path.join(opts.home, '.claude', 'plugins', 'amir-loop'),
+      confidence: 'guess',
+      label: `${path.join(opts.home, '.claude', 'plugins', 'amir-loop')} (global install guess)`,
+    });
+    candidates.push({
+      dir: path.join(opts.home, '.claude', 'plugins', 'marketplaces', 'lumvale', 'amir-loop'),
+      confidence: 'guess',
+      label: `${path.join(opts.home, '.claude', 'plugins', 'marketplaces', 'lumvale', 'amir-loop')} (marketplace install guess)`,
+    });
   }
   return candidates;
+}
+
+export interface ResolvedScripts {
+  scriptsDir: string;
+  confidence: 'explicit' | 'guess';
+  label: string;
 }
 
 /**
  * Picks the first candidate plugin directory whose scripts/amir-loop-status.sh
  * actually exists. `exists` is injected so this stays unit-testable without
  * touching the real filesystem.
+ *
+ * Returns which candidate won and how confident that choice is, not just the
+ * path: silently reading the wrong install (e.g. a stale checkout still
+ * sitting in the workspace while the real active install is a marketplace
+ * path) is worse than failing to find one, so the caller must be able to
+ * show the user which one it picked and how.
  */
 export function detectScriptsDir(
-  candidates: string[],
+  candidates: PluginCandidate[],
   exists: (p: string) => boolean,
-): string | undefined {
-  for (const dir of candidates) {
-    const scripts = path.join(dir, 'scripts');
+): ResolvedScripts | undefined {
+  for (const c of candidates) {
+    const scripts = path.join(c.dir, 'scripts');
     if (exists(path.join(scripts, 'amir-loop-status.sh'))) {
-      return scripts;
+      return { scriptsDir: scripts, confidence: c.confidence, label: c.label };
     }
   }
   return undefined;
+}
+
+/**
+ * Renders a ResolvedScripts as a one-line, user-facing explanation of where
+ * the extension is getting its scripts from and how sure it is about that -
+ * e.g. "Resolved from the amirLoop.pluginPath setting: /path/to/scripts" vs
+ * "Guessed at /home/x/.claude/plugins/amir-loop/scripts (global install
+ * guess)". Those two warrant very different levels of user trust.
+ */
+export function describeResolvedScripts(r: ResolvedScripts): string {
+  const verb = r.confidence === 'explicit' ? 'Resolved from' : 'Guessed at';
+  return `${verb} ${r.label}: ${r.scriptsDir}`;
+}
+
+/**
+ * Validates amirLoop.maxIterations before it reaches setup.sh's argv.
+ * execFile passes argv as an array (no shell interpolation), so this is not
+ * a security boundary - it exists purely so a malformed setting gets a
+ * clear message from the extension instead of traveling all the way to
+ * setup.sh's own (worse) rejection.
+ */
+export function validateMaxIterations(
+  value: unknown,
+  fallback = 1000,
+): { value: number; warning?: string } {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+    return { value };
+  }
+  return {
+    value: fallback,
+    warning: `amirLoop.maxIterations must be a positive whole number, got ${JSON.stringify(value)}. Using default ${fallback}.`,
+  };
 }
 
 export const PLUGIN_PATH_HELP =

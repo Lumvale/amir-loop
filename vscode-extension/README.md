@@ -22,14 +22,21 @@ it mirrors the hook's own validation exactly, including discarding a state
 file whose `iteration` or `max_iterations` isn't a whole number. A second,
 looser parser in the extension could disagree with the hook.
 
+Which install the extension is actually talking to is not left implicit:
+every time `Amir Loop: Doctor` runs, and once on the first successful status
+refresh, the output channel gets a line naming the resolved `scripts/`
+directory and *how* it was found - e.g. `Resolved from the
+amirLoop.pluginPath setting: <configured path>/scripts` versus `Guessed at
+~/.claude/plugins/amir-loop/scripts (global install guess)`. The same line
+is appended to the status-bar tooltip, so it's visible without opening the
+output channel at all. A stale checkout silently outranking the real active
+install would otherwise be undetectable.
+
 ## Settings
 
 | Setting | Description |
 |---|---|
-| `amirLoop.maxIterations` | Per-session turn cap passed to `--max-iterations` on Start. |
-| `amirLoop.days` | AMIR_LOOP_DAYS - calendar window from first arm. 0 = no deadline. |
-| `amirLoop.until` | AMIR_LOOP_UNTIL - absolute YYYY-MM-DD deadline; overrides days. |
-| `amirLoop.off` | AMIR_LOOP_OFF - kill switch. |
+| `amirLoop.maxIterations` | Per-session turn cap passed to `--max-iterations` when starting a loop from `Amir Loop: Start`. Must be a positive whole number; an invalid value falls back to 1000 with a warning instead of being sent to `setup.sh` to fail there. |
 | `amirLoop.pluginPath` | Path to the `plugins/amir-loop` directory (the one whose `scripts/` subfolder holds `amir-loop-status.sh`). Leave blank to autodetect. |
 
 `amirLoop.pluginPath` autodetection checks, in order: the setting itself,
@@ -39,6 +46,34 @@ install locations under your home directory. This is a best-effort guess,
 not a guarantee - if none of those match your install, set
 `amirLoop.pluginPath` explicitly; the error message names the setting and
 the kind of value it expects.
+
+### Settings that intentionally do not exist here
+
+Earlier drafts of this extension declared `amirLoop.days`, `amirLoop.until`,
+and `amirLoop.off` alongside `amirLoop.maxIterations`. They were removed:
+those three map to environment variables the **hook** reads at Stop time
+(`AMIR_LOOP_DAYS`, `AMIR_LOOP_UNTIL`, `AMIR_LOOP_OFF` - see
+`amir-loop-stop.sh`), and `amir-loop-setup.sh` (the only script this
+extension can drive) accepts only `--max-iterations`, `--completion-promise`,
+and `--cancel`. A VS Code extension has no channel to set the environment
+that a hook the *host* invokes will see, so a `days`/`until`/`off` setting
+here could never take effect - a user who set `amirLoop.days: 2` would
+silently keep the hook's real default of 5. An absent setting is honest; a
+setting that cannot work is not.
+
+If you want to control these, set them as environment variables in whatever
+process actually launches the hook - for example in the shell profile or
+`.env` used by the terminal Claude Code (or VS Code's integrated terminal,
+if that's what's invoking Claude Code) runs in, so the hook process inherits
+them:
+
+| Variable | Effect (read by the hook, not this extension) |
+|---|---|
+| `AMIR_LOOP_MAX` | Per-session turn cap (default 1000). Also settable per-loop via `Amir Loop: Start` / `amirLoop.maxIterations`, which takes precedence for that loop since it's passed explicitly as `--max-iterations`. |
+| `AMIR_LOOP_DAYS` | Calendar window in days from the first arm (default 5). `0` means no deadline. |
+| `AMIR_LOOP_UNTIL` | Absolute `YYYY-MM-DD` deadline; overrides `AMIR_LOOP_DAYS` if set. Unparseable values are treated as already expired. |
+| `AMIR_LOOP_OFF` | Kill switch: `1` allows the Stop hook to end the loop immediately. (`Amir Loop: Cancel` achieves the same effect for the current project via `amir-loop-setup.sh --cancel`, which also writes the `.claude/amir-loop-off` file rather than relying on the environment.) |
+| `AMIR_LOOP_AUTOARM` | `0` means "continue a loop someone already started, but never auto-arm a new one". |
 
 ## Development
 
