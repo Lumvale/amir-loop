@@ -51,3 +51,98 @@ EOF
   rm -f "$BATS_TEST_TMPDIR/transcript.jsonl"
   rm -rf "$BATS_TEST_TMPDIR/.claude"
 }
+
+@test "principles are inherited from a grandparent .claude directory" {
+  mkdir -p "$BATS_TEST_TMPDIR/fleet/.claude" "$BATS_TEST_TMPDIR/fleet/repo/sub"
+  echo "FLEET STANDING ORDERS SENTINEL" \
+    > "$BATS_TEST_TMPDIR/fleet/.claude/amir-loop-principles.md"
+  cp "$FIXTURES/vscode-copilot.jsonl" "$BATS_TEST_TMPDIR/t.jsonl"
+  run bash -c "printf '{\"cwd\":\"$BATS_TEST_TMPDIR/fleet/repo/sub\",\"session_id\":\"s1\",\"transcript_path\":\"$BATS_TEST_TMPDIR/t.jsonl\"}' | bash '$HOOK'"
+  [ "$status" -eq 0 ]
+  grep -q "FLEET STANDING ORDERS SENTINEL" \
+    "$BATS_TEST_TMPDIR/fleet/repo/sub/.claude/amir-loop.local.md"
+}
+
+@test "no principles anywhere yields the generic body only" {
+  use_fixture vscode-copilot.jsonl
+  run run_hook
+  [ "$status" -eq 0 ]
+  grep -q "Work as a collective of principal engineers" \
+    "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md"
+}
+
+@test "iteration 1 sends the full brief; iteration 2 sends only the pointer" {
+  use_fixture vscode-copilot.jsonl
+  arm_state 1 10
+  run run_hook
+  echo "$output" | jq -r '.reason' | grep -q "Do the work."
+
+  arm_state 5 10
+  run run_hook
+  reason=$(echo "$output" | jq -r '.reason')
+  echo "$reason" | grep -q "Re-read that file"
+  ! echo "$reason" | grep -q "Do the work."
+}
+
+@test "marker with unchanged human turn count allows the stop" {
+  use_fixture vscode-copilot.jsonl
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  echo 1 > "$BATS_TEST_TMPDIR/.claude/.amir-loop-done-s1"
+  run run_hook
+  [ "$status" -eq 0 ]; [ -z "$output" ]
+}
+
+@test "marker below the human turn count re-arms the loop" {
+  use_fixture vscode-copilot.jsonl
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  echo 0 > "$BATS_TEST_TMPDIR/.claude/.amir-loop-done-s1"
+  run run_hook
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+  [ ! -f "$BATS_TEST_TMPDIR/.claude/.amir-loop-done-s1" ]
+}
+
+@test "promise in the LAST message finishes the loop" {
+  arm_state 1 10
+  printf '%s\n' \
+    '{"type":"assistant.message","data":{"content":"<promise>AMIR LOOP COMPLETE</promise>"},"id":1,"timestamp":1}' \
+    > "$BATS_TEST_TMPDIR/t.jsonl"
+  TRANSCRIPT="$BATS_TEST_TMPDIR/t.jsonl"
+  run run_hook
+  [ "$status" -eq 0 ]; [ -z "$output" ]
+  [ ! -f "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md" ]
+}
+
+@test "promise in an EARLIER message does not finish the loop" {
+  arm_state 1 10
+  printf '%s\n%s\n' \
+    '{"type":"assistant.message","data":{"content":"<promise>AMIR LOOP COMPLETE</promise>"},"id":1,"timestamp":1}' \
+    '{"type":"assistant.message","data":{"content":"actually there is more to do"},"id":2,"timestamp":2}' \
+    > "$BATS_TEST_TMPDIR/t.jsonl"
+  TRANSCRIPT="$BATS_TEST_TMPDIR/t.jsonl"
+  run run_hook
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+}
+
+@test "--claude-code stands down in a copilot-chat session" {
+  use_fixture_as_copilot vscode-copilot.jsonl
+  arm_state 1 10
+  run run_hook --claude-code
+  [ "$status" -eq 0 ]; [ -z "$output" ]
+}
+
+@test "--claude-code never auto-arms when no state exists" {
+  use_fixture claude-code.jsonl
+  run run_hook --claude-code
+  [ "$status" -eq 0 ]; [ -z "$output" ]
+  [ ! -f "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md" ]
+}
+
+@test "AMIR_LOOP_AUTOARM=0 continues an existing loop but starts none" {
+  use_fixture claude-code.jsonl
+  AMIR_LOOP_AUTOARM=0 run run_hook
+  [ -z "$output" ]
+  arm_state 1 10
+  AMIR_LOOP_AUTOARM=0 run run_hook
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+}
