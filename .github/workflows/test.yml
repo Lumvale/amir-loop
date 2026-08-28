@@ -22,7 +22,7 @@ jobs:
             echo "CRLF found - .gitattributes eol=lf is not holding"; exit 1; }
       - name: Assert no absolute paths
         run: |
-          ! grep -rnE 'C:/|C:\\\\|/home/[a-z]+/|PROGRA~1' --include='*.json' --include='*.sh' --include='*.md' .
+          ! grep -rnE 'C:/|C:\\\\|/home/[a-z]+/|PROGRA~1' --include='*.json' --include='*.sh' --include='*.md' --include='*.ts' --include='*.yml' .
       - name: Assert vendored jq executes on this platform
         run: |
           vendor="plugins/amir-loop/vendor/jq"

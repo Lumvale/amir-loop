@@ -214,7 +214,7 @@ export function detectScriptsDir(
  * Renders a ResolvedScripts as a one-line, user-facing explanation of where
  * the extension is getting its scripts from and how sure it is about that -
  * e.g. "Resolved from the amirLoop.pluginPath setting: /path/to/scripts" vs
- * "Guessed at /home/x/.claude/plugins/amir-loop/scripts (global install
+ * "Guessed at ~/.claude/plugins/amir-loop/scripts (global install
  * guess)". Those two warrant very different levels of user trust.
  */
 export function describeResolvedScripts(r: ResolvedScripts): string {
