@@ -1,13 +1,13 @@
 ---
 description: "Cancel the active Amir Loop and stop the Stop hook re-arming"
-allowed-tools: ["Bash(C:/PROGRA~1/Git/bin/bash.exe C:/lumvale/lumvale-docs/engineering/autonomous-stack/files/amir-plugin/scripts/amir-loop-setup.sh --cancel:*)"]
+allowed-tools: ["Bash(bash \"${CLAUDE_PLUGIN_ROOT}/scripts/amir-loop-setup.sh\" --cancel:*)"]
 hide-from-slash-command-tool: "true"
 ---
 
 # Cancel Amir Loop
 
 ```!
-C:/PROGRA~1/Git/bin/bash.exe C:/lumvale/lumvale-docs/engineering/autonomous-stack/files/amir-plugin/scripts/amir-loop-setup.sh --cancel
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/amir-loop-setup.sh" --cancel
 ```
 
 This removes `.claude/amir-loop.local.md` and writes `.claude/amir-loop-off`.

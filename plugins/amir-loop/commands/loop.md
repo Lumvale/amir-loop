@@ -1,7 +1,7 @@
 ---
 description: "Start an Amir Loop in this session with your own prompt"
 argument-hint: "PROMPT [--max-iterations N] [--completion-promise TEXT]"
-allowed-tools: ["Bash(C:/PROGRA~1/Git/bin/bash.exe C:/lumvale/lumvale-docs/engineering/autonomous-stack/files/amir-plugin/scripts/amir-loop-setup.sh:*)"]
+allowed-tools: ["Bash(bash \"${CLAUDE_PLUGIN_ROOT}/scripts/amir-loop-setup.sh\":*)"]
 hide-from-slash-command-tool: "true"
 ---
 
@@ -10,7 +10,7 @@ hide-from-slash-command-tool: "true"
 Arm the loop with the prompt supplied below:
 
 ```!
-C:/PROGRA~1/Git/bin/bash.exe C:/lumvale/lumvale-docs/engineering/autonomous-stack/files/amir-plugin/scripts/amir-loop-setup.sh $ARGUMENTS
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/amir-loop-setup.sh" $ARGUMENTS
 ```
 
 Now work on that task. When you try to end your turn, the Stop hook feeds the SAME prompt back
