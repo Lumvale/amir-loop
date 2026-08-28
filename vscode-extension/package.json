@@ -1,0 +1,39 @@
+{
+  "name": "amir-loop",
+  "displayName": "Amir Loop",
+  "description": "Control surface for the Amir Loop autonomy hook",
+  "version": "1.0.0",
+  "publisher": "lumvale",
+  "engines": { "vscode": "^1.90.0" },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "amirLoop.start",  "title": "Amir Loop: Start" },
+      { "command": "amirLoop.cancel", "title": "Amir Loop: Cancel" },
+      { "command": "amirLoop.doctor", "title": "Amir Loop: Doctor" }
+    ],
+    "configuration": {
+      "title": "Amir Loop",
+      "properties": {
+        "amirLoop.maxIterations": { "type": "number", "default": 1000, "description": "AMIR_LOOP_MAX - per-session turn cap." },
+        "amirLoop.days":          { "type": "number", "default": 5,    "description": "AMIR_LOOP_DAYS - calendar window from first arm. 0 = no deadline." },
+        "amirLoop.until":         { "type": "string", "default": "",   "description": "AMIR_LOOP_UNTIL - absolute YYYY-MM-DD deadline; overrides days." },
+        "amirLoop.off":           { "type": "boolean","default": false,"description": "AMIR_LOOP_OFF - kill switch." },
+        "amirLoop.pluginPath":    { "type": "string", "default": "",   "description": "Path to plugins/amir-loop. Leave blank to autodetect from the installed plugin." }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "package": "vsce package",
+    "test": "npm run compile && node --test out/test/extension.test.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.90.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "@vscode/vsce": "^2.26.0"
+  }
+}
