@@ -41,7 +41,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-STATE=".claude/amir-loop.local.md"
+STATE=".claude/amir-loop.pending.local.md"
 OFF=".claude/amir-loop-off"
 
 mkdir -p .claude 2>/dev/null || { echo "error: cannot create .claude here" >&2; exit 1; }
@@ -62,7 +62,7 @@ while [ -n "$_dir" ]; do
 done
 
 if [ "$CANCEL" = "1" ]; then
-  rm -f "$STATE"
+  rm -f .claude/amir-loop.local.md .claude/amir-loop.pending.local.md .claude/amir-loop.*.local.md
   : > "$OFF"
   echo "Amir Loop cancelled. The Stop hook will not re-arm in this project."
   echo "Run the start command again (or delete $OFF) to re-enable it."
@@ -85,6 +85,7 @@ rm -f "$OFF"
   cat <<EOF
 ---
 active: true
+session_id: "pending"
 iteration: 1
 max_iterations: $MAX
 completion_promise: "$PROMISE"
@@ -100,6 +101,18 @@ EOF
     cat "$PRINCIPLES"
   fi
   cat <<EOF
+
+## Goal precedence
+
+The explicit prompt above is the PRIMARY GOAL. Continue it until every actionable part is
+implemented, verified, and delivered, or until every in-scope way to advance it has been
+exhausted. A status report, partial result, filed follow-up issue, pending check, or newly
+discovered blocker means this goal still has work remaining; it is not permission to
+switch scope.
+
+Project standing orders and their backlog rules are FALLBACK WORK. Consult or select from
+that backlog only after the primary goal is genuinely exhausted. An oldest-first or
+highest-priority rule must never pre-empt unfinished work from the explicit prompt.
 
 If, and only if, the work above is genuinely finished and verified, output
 <promise>$PROMISE</promise> to end the loop.

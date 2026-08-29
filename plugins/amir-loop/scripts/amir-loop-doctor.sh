@@ -85,8 +85,12 @@ done
 [ -n "$FOUND" ] && ok "principles: $FOUND" || warn "principles: none found from $PWD upwards - the generic body will be used"
 
 # --- current loop state ---
-if [ -f "$PWD/.claude/amir-loop.local.md" ]; then
-  ok "loop armed: iteration $(grep -m1 '^iteration:' "$PWD/.claude/amir-loop.local.md" | tr -dc '0-9') of $(grep -m1 '^max_iterations:' "$PWD/.claude/amir-loop.local.md" | tr -dc '0-9')"
+shopt -s nullglob
+_session_states=("$PWD"/.claude/amir-loop.*.local.md)
+if [ "${#_session_states[@]}" -gt 0 ]; then
+  ok "${#_session_states[@]} session-scoped loop state file(s) in this project"
+elif [ -f "$PWD/.claude/amir-loop.local.md" ]; then
+  warn "legacy project-wide loop state found: $PWD/.claude/amir-loop.local.md - current hooks ignore it so one chat cannot take over another"
 else
   ok "no loop armed in this project"
 fi

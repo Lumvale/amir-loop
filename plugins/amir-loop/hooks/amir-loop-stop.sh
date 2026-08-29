@@ -1,8 +1,9 @@
 #!/bin/bash
 # Amir Loop - a self-contained auto-arming Stop hook.
 #
-# Creates .claude/amir-loop.local.md on the first Stop of a session so the loop arms
-# itself, then decides whether to block the stop and feed the prompt back.
+# Creates a session-scoped .claude/amir-loop.<session>.local.md on the first Stop so
+# concurrent chats rooted in the same project cannot inherit or overwrite each other's
+# goals, then decides whether to block the stop and feed the prompt back.
 #
 # LINEAGE. The state-file shape and the {"decision":"block","reason":...} protocol come
 # from Anthropic's ralph-wiggum plugin; the implementation is ours and shares no code.
@@ -107,10 +108,22 @@ if [ -n "$TRANSCRIPT" ] && command -v cygpath >/dev/null 2>&1; then
   TRANSCRIPT=$(cygpath -u "$TRANSCRIPT" 2>/dev/null) || TRANSCRIPT=""
 fi
 
-STATE="$CWD/.claude/amir-loop.local.md"
+SESSION_KEY=$(printf '%s' "$SESSION" | tr -c 'A-Za-z0-9._-' '_')
+[ -n "$SESSION_KEY" ] || SESSION_KEY="nosession"
+STATE_NAME="amir-loop.$SESSION_KEY.local.md"
+STATE="$CWD/.claude/$STATE_NAME"
+PENDING_STATE="$CWD/.claude/amir-loop.pending.local.md"
 CAMPAIGN="$CWD/.claude/.amir-loop-campaign"
 MARKER="$CWD/.claude/.amir-loop-done-$SESSION"
 RETRY_FILE="$CWD/.claude/.amir-loop-retry-$SESSION"
+
+# A manually started loop cannot know the host session id. The setup command writes one
+# pending state file; the next Stop in that chat atomically claims it. Auto-armed loops
+# never consult the old project-global amir-loop.local.md, because doing so allowed an
+# unrelated chat in the same workspace to take over the current direct request.
+if [ ! -f "$STATE" ] && [ -f "$PENDING_STATE" ]; then
+  mv "$PENDING_STATE" "$STATE" 2>/dev/null || allow_stop
+fi
 # Optional per-project standing orders, appended to every armed loop. Absent => the
 # generic posture below is all the agent gets, which is the safe default for any project.
 #
@@ -230,6 +243,7 @@ if [ ! -f "$STATE" ]; then
     cat <<EOF
 ---
 active: true
+session_id: "$SESSION"
 iteration: 1
 max_iterations: $MAX_ITER
 completion_promise: "$PROMISE"
@@ -258,6 +272,19 @@ EOF
       cat "$PRINCIPLES"
     fi
     cat <<EOF
+
+## Goal precedence
+
+The direct user request that caused this loop to arm is the PRIMARY GOAL. Continue that
+goal until every actionable part of it is implemented, verified, and delivered, or until
+you have exhausted every in-scope way to advance it. A status report, partial result,
+filed follow-up issue, pending check, or newly discovered blocker is evidence that the
+primary goal still has work remaining; it is not permission to switch scope.
+
+Project standing orders and their backlog rules are FALLBACK WORK. Consult or select from
+that backlog only after the primary goal is genuinely exhausted. If a standing order says
+to pick the oldest or highest-priority board item, that instruction applies only at this
+fallback boundary and must never pre-empt unfinished work from the direct request.
 
 If, and only if, there is nothing further you can advance, output
 <promise>$PROMISE</promise> to end the loop.
@@ -373,11 +400,16 @@ PROMPT_TEXT=$(awk '/^---$/{i++; next} i>=2' "$STATE")
 if [ "$ITER" -gt 1 ]; then
   PROMPT_TEXT="Continue the loop - iteration $NEXT of $LIMIT.
 
-Your standing orders for this run are in .claude/amir-loop.local.md. Re-read that file when
-you need them.
+Your standing orders for this run are in .claude/$STATE_NAME. Re-read that file when you
+need them. This file belongs only to the current chat; do not adopt another session's loop.
 
-Take the next concrete step on the work now. Do not reply with an empty message: if you have
-nothing to say, perform the next action instead.
+Continue the DIRECT USER REQUEST that started this loop. It is the primary goal. Do not pick
+general board or standing-order backlog work while any actionable implementation, verification,
+delivery, pending check, follow-up, or workaround remains for that direct request. Backlog work is
+fallback work only after the primary goal is genuinely exhausted.
+
+Take the next concrete step on the primary goal now. Do not reply with an empty message: if you
+have nothing to say, perform the next action instead.
 
 Output <promise>$GOAL</promise> only when the work is exhausted - never to escape a hard
 step, and never straight after an empty or failed turn. If turns are failing, say what is

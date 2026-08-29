@@ -73,10 +73,10 @@ load helper
   use_fixture vscode-copilot.jsonl
   mkdir -p "$BATS_TEST_TMPDIR/.claude"
   printf -- '---\niteration: banana\nmax_iterations: 10\n---\n\nwork\n' \
-    > "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md"
+    > "$TEST_STATE"
   run run_hook
   [ "$status" -eq 0 ]; [ -z "$output" ]
-  [ ! -f "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md" ]
+  [ ! -f "$TEST_STATE" ]
 }
 
 @test "invalid AMIR_LOOP_DAYS allows the stop" {

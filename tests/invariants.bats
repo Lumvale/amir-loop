@@ -34,7 +34,7 @@ EOF
   run run_hook
   [ "$status" -eq 0 ]
   [ -z "$output" ]
-  [ ! -f "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md" ]
+  [ ! -f "$TEST_STATE" ]
   rm -f "$BATS_TEST_TMPDIR/transcript.jsonl"
   rm -rf "$BATS_TEST_TMPDIR/.claude"
 
@@ -47,7 +47,7 @@ EOF
   run run_hook
   [ "$status" -eq 0 ]
   [ -z "$output" ]
-  [ ! -f "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md" ]
+  [ ! -f "$TEST_STATE" ]
   rm -f "$BATS_TEST_TMPDIR/transcript.jsonl"
   rm -rf "$BATS_TEST_TMPDIR/.claude"
 }
@@ -60,7 +60,7 @@ EOF
   run bash -c "printf '{\"cwd\":\"$BATS_TEST_TMPDIR/fleet/repo/sub\",\"session_id\":\"s1\",\"transcript_path\":\"$BATS_TEST_TMPDIR/t.jsonl\"}' | bash '$HOOK'"
   [ "$status" -eq 0 ]
   grep -q "FLEET STANDING ORDERS SENTINEL" \
-    "$BATS_TEST_TMPDIR/fleet/repo/sub/.claude/amir-loop.local.md"
+    "$BATS_TEST_TMPDIR/fleet/repo/sub/.claude/amir-loop.s1.local.md"
 }
 
 @test "principles resolution climbs ancestors only, never siblings" {
@@ -71,9 +71,9 @@ EOF
   run bash -c "printf '{\"cwd\":\"$BATS_TEST_TMPDIR/work\",\"session_id\":\"s1\",\"transcript_path\":\"$BATS_TEST_TMPDIR/t.jsonl\"}' | bash '$HOOK'"
   [ "$status" -eq 0 ]
   grep -q "Work as a collective of principal engineers" \
-    "$BATS_TEST_TMPDIR/work/.claude/amir-loop.local.md"
+    "$BATS_TEST_TMPDIR/work/.claude/amir-loop.s1.local.md"
   ! grep -q "DECOY PRINCIPLES MUST NOT BE LOADED" \
-    "$BATS_TEST_TMPDIR/work/.claude/amir-loop.local.md"
+    "$BATS_TEST_TMPDIR/work/.claude/amir-loop.s1.local.md"
 }
 
 @test "iteration 1 sends the full brief; iteration 2 sends only the pointer" {
@@ -86,7 +86,76 @@ EOF
   run run_hook
   reason=$(echo "$output" | jq -r '.reason')
   echo "$reason" | grep -q "Re-read that file"
+  echo "$reason" | grep -q "Continue the DIRECT USER REQUEST"
+  echo "$reason" | grep -q "fallback work only after the primary goal"
   ! echo "$reason" | grep -q "Do the work."
+}
+
+@test "standing-order backlog is explicitly subordinate to the direct goal" {
+  mkdir -p "$BATS_TEST_TMPDIR/fleet/.claude" "$BATS_TEST_TMPDIR/fleet/repo"
+  echo "Pick the oldest board story immediately." \
+    > "$BATS_TEST_TMPDIR/fleet/.claude/amir-loop-principles.md"
+  cp "$FIXTURES/vscode-copilot.jsonl" "$BATS_TEST_TMPDIR/t.jsonl"
+
+  run bash -c "printf '{\"cwd\":\"$BATS_TEST_TMPDIR/fleet/repo\",\"session_id\":\"s1\",\"transcript_path\":\"$BATS_TEST_TMPDIR/t.jsonl\"}' | bash '$HOOK'"
+  [ "$status" -eq 0 ]
+
+  state="$BATS_TEST_TMPDIR/fleet/repo/.claude/amir-loop.s1.local.md"
+  grep -q "direct user request.*PRIMARY GOAL" "$state"
+  grep -q "backlog rules are FALLBACK WORK" "$state"
+  principles_line=$(grep -n "Pick the oldest board story" "$state" | cut -d: -f1)
+  precedence_line=$(grep -n "## Goal precedence" "$state" | cut -d: -f1)
+  [ "$precedence_line" -gt "$principles_line" ]
+}
+
+@test "manual setup gives its explicit prompt precedence over standing orders" {
+  setup_script="$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-setup.sh"
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  echo "Pick the oldest board story immediately." \
+    > "$BATS_TEST_TMPDIR/.claude/amir-loop-principles.md"
+  cd "$BATS_TEST_TMPDIR"
+
+  run bash "$setup_script" "Finish the direct incident repair first"
+  [ "$status" -eq 0 ]
+  state="$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
+  grep -q "The explicit prompt above is the PRIMARY GOAL" "$state"
+  principles_line=$(grep -n "Pick the oldest board story" "$state" | cut -d: -f1)
+  precedence_line=$(grep -n "## Goal precedence" "$state" | cut -d: -f1)
+  [ "$precedence_line" -gt "$principles_line" ]
+}
+
+@test "a legacy project-wide loop cannot take over a new session" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  cat > "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md" <<EOF
+---
+active: true
+iteration: 3
+max_iterations: 20
+completion_promise: "AMIR LOOP COMPLETE"
+---
+
+LEGACY OLDEST-BOARD GOAL MUST NOT LEAK
+EOF
+  use_fixture vscode-copilot.jsonl
+
+  run run_hook
+  [ "$status" -eq 0 ]
+  [ -f "$TEST_STATE" ]
+  [ -f "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md" ]
+  ! echo "$output" | grep -q "LEGACY OLDEST-BOARD GOAL MUST NOT LEAK"
+}
+
+@test "concurrent sessions receive independent loop state" {
+  use_fixture vscode-copilot.jsonl
+  run run_hook
+  [ "$status" -eq 0 ]
+  [ -f "$BATS_TEST_TMPDIR/.claude/amir-loop.s1.local.md" ]
+
+  run bash -c "jq -n --arg cwd '$BATS_TEST_TMPDIR' --arg tp '$TRANSCRIPT' '{cwd: \$cwd, session_id: \"s2\", transcript_path: \$tp}' | bash '$HOOK'"
+  [ "$status" -eq 0 ]
+  [ -f "$BATS_TEST_TMPDIR/.claude/amir-loop.s2.local.md" ]
+  grep -q 'session_id: "s1"' "$BATS_TEST_TMPDIR/.claude/amir-loop.s1.local.md"
+  grep -q 'session_id: "s2"' "$BATS_TEST_TMPDIR/.claude/amir-loop.s2.local.md"
 }
 
 @test "marker with unchanged human turn count allows the stop" {
@@ -115,7 +184,7 @@ EOF
   TRANSCRIPT="$BATS_TEST_TMPDIR/t.jsonl"
   run run_hook
   [ "$status" -eq 0 ]; [ -z "$output" ]
-  [ ! -f "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md" ]
+  [ ! -f "$TEST_STATE" ]
 }
 
 @test "promise in an EARLIER message does not finish the loop" {
@@ -140,7 +209,7 @@ EOF
   use_fixture claude-code.jsonl
   run run_hook --claude-code
   [ "$status" -eq 0 ]; [ -z "$output" ]
-  [ ! -f "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md" ]
+  [ ! -f "$TEST_STATE" ]
 }
 
 @test "AMIR_LOOP_AUTOARM=0 continues an existing loop but starts none" {
@@ -164,7 +233,7 @@ EOF
   arm_state 1 10
   CODEX_LAST_ASSISTANT="verified <promise>AMIR LOOP COMPLETE</promise>" run run_codex_hook
   [ "$status" -eq 0 ]; [ -z "$output" ]
-  [ ! -f "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md" ]
+  [ ! -f "$TEST_STATE" ]
   [ "$(cat "$BATS_TEST_TMPDIR/.claude/.amir-loop-done-s1")" = "turn:turn-1" ]
 }
 
@@ -173,7 +242,7 @@ EOF
   echo "turn:turn-1" > "$BATS_TEST_TMPDIR/.claude/.amir-loop-done-s1"
   CODEX_TURN_ID="turn-1" run run_codex_hook
   [ "$status" -eq 0 ]; [ -z "$output" ]
-  [ ! -f "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md" ]
+  [ ! -f "$TEST_STATE" ]
 }
 
 @test "Codex completion marker re-arms on a new user turn" {
@@ -192,7 +261,7 @@ EOF
   [ "$status" -eq 0 ]
   [ "$(echo "$output" | jq -r '.decision')" = "block" ]
   echo "$output" | jq -r '.reason' | grep -q "transient provider or network error"
-  grep -q '^iteration: 1$' "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md"
+  grep -q '^iteration: 1$' "$TEST_STATE"
   [ "$(cat "$BATS_TEST_TMPDIR/.claude/.amir-loop-retry-s1")" = "1" ]
 }
 

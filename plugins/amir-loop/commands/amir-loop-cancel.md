@@ -10,7 +10,8 @@ hide-from-slash-command-tool: "true"
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/amir-loop-setup.sh" --cancel
 ```
 
-This removes `.claude/amir-loop.local.md` and writes `.claude/amir-loop-off`.
+This removes the legacy, pending, and session-scoped `.claude/amir-loop*.local.md`
+state files and writes `.claude/amir-loop-off`.
 
 Both steps matter. Deleting the state file alone would not be enough: the Stop hook arms a new
 loop automatically on the next turn, so the loop would simply come back. The off-switch file is

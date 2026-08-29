@@ -1,5 +1,6 @@
 HOOK="$BATS_TEST_DIRNAME/../plugins/amir-loop/hooks/amir-loop-stop.sh"
 FIXTURES="$BATS_TEST_DIRNAME/fixtures"
+TEST_STATE="$BATS_TEST_TMPDIR/.claude/amir-loop.s1.local.md"
 
 # Copy a fixture into the temp dir so tests never share transcript state.
 use_fixture() {
@@ -17,9 +18,10 @@ use_fixture_as_copilot() {
 # Pre-arm a loop at a given iteration so continuation paths can be tested.
 arm_state() {
   mkdir -p "$BATS_TEST_TMPDIR/.claude"
-  cat > "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md" <<EOF
+  cat > "$TEST_STATE" <<EOF
 ---
 active: true
+session_id: "s1"
 iteration: $1
 max_iterations: $2
 completion_promise: "AMIR LOOP COMPLETE"

@@ -66,7 +66,7 @@ to the active `git.exe`, avoiding accidental resolution to WSL's `bash.exe`. Run
 | Command | What it does |
 |---|---|
 | `/amir-loop` | Arms a loop in the current session with your own prompt. The Stop hook then feeds that same prompt back on every turn until the loop ends. |
-| `/amir-loop-cancel` | Cancels the active loop: removes the state file and writes a `.claude/amir-loop-off` kill switch, so the hook does not simply re-arm on the next turn. |
+| `/amir-loop-cancel` | Cancels active loops in the project: removes their session-scoped state files and writes a `.claude/amir-loop-off` kill switch, so the hook does not simply re-arm on the next turn. |
 | `/amir-loop-status` | Shows the current loop state for this project (idle, armed with iteration/limit, or invalid) without mutating anything. |
 | `/amir-loop-init` | Scaffolds a `.claude/amir-loop-principles.md` file from `templates/principles/`, if one does not already exist here. Never overwrites an existing principles file. |
 | `/amir-loop-doctor` | Diagnoses why the loop is or is not working on this machine — bash resolution, vendored `jq`, and conflicting Stop-hook registrations — and states a concrete fix for each failure. |
@@ -92,6 +92,18 @@ same way `.gitignore` or `.editorconfig` is — so a single file at the root of 
 of repositories covers every repo beneath it, without needing to be duplicated into
 each one. Run `/amir-loop-init` to scaffold one from `templates/principles/` when none
 exists yet; it will not touch a file that is already there.
+
+Standing orders are subordinate to the direct request that armed the loop. Their
+board/backlog rules become fallback work only after every actionable part of that
+direct request has been implemented, verified, and delivered or can no longer be
+advanced in scope. Filing a follow-up or reporting a partial result does not cross
+that boundary.
+
+Loop state is isolated per host session as `.claude/amir-loop.<session>.local.md`.
+This prevents two chats rooted in the same workspace from inheriting or overwriting
+each other's goal. A manually armed loop is first written as `amir-loop.pending.local.md`
+and claimed by the next Stop event in that chat. Older project-wide
+`amir-loop.local.md` files are deliberately ignored by current hooks.
 
 ## Conflicts
 
