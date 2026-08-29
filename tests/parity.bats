@@ -19,8 +19,8 @@ SETUP="$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-setup.sh"
   cp "$FIXTURES/vscode-copilot.jsonl" "$BATS_TEST_TMPDIR/t.jsonl"
   run bash -c "printf '{\"cwd\":\"$BATS_TEST_TMPDIR/fleet/repo/sub\",\"session_id\":\"s1\",\"transcript_path\":\"$BATS_TEST_TMPDIR/t.jsonl\"}' | bash '$HOOK'"
   [ "$status" -eq 0 ]
-  grep -q "PARITY SENTINEL" "$BATS_TEST_TMPDIR/fleet/repo/sub/.claude/amir-loop.local.md"
-  rm -rf "$BATS_TEST_TMPDIR/fleet/repo/sub/.claude/amir-loop.local.md"
+  grep -q "PARITY SENTINEL" "$BATS_TEST_TMPDIR/fleet/repo/sub/.claude/amir-loop.s1.local.md"
+  rm -f "$BATS_TEST_TMPDIR/fleet/repo/sub/.claude/amir-loop.s1.local.md"
 
   # doctor: run from the same sub dir, expect it to name the exact same path
   run bash -c "cd '$BATS_TEST_TMPDIR/fleet/repo/sub' && bash '$DOCTOR'"
@@ -30,7 +30,7 @@ SETUP="$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-setup.sh"
   # text to be appended to the state file it writes
   run bash -c "cd '$BATS_TEST_TMPDIR/fleet/repo/sub' && bash '$SETUP' do the thing"
   [ "$status" -eq 0 ]
-  grep -q "PARITY SENTINEL" "$BATS_TEST_TMPDIR/fleet/repo/sub/.claude/amir-loop.local.md"
+  grep -q "PARITY SENTINEL" "$BATS_TEST_TMPDIR/fleet/repo/sub/.claude/amir-loop.pending.local.md"
 }
 
 @test "parity: doctor and the hook select the same jq" {

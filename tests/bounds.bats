@@ -5,7 +5,7 @@ load helper
   arm_state 10 10
   run run_hook
   [ "$status" -eq 0 ]; [ -z "$output" ]
-  [ ! -f "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md" ]
+  [ ! -f "$TEST_STATE" ]
   [ -f "$BATS_TEST_TMPDIR/.claude/.amir-loop-done-s1" ]
 }
 
@@ -13,14 +13,14 @@ load helper
   use_fixture vscode-copilot.jsonl
   arm_state 3 10
   run run_hook
-  grep -q '^iteration: 4$' "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md"
+  grep -q '^iteration: 4$' "$TEST_STATE"
 }
 
 @test "AMIR_LOOP_MAX of 0 or junk clamps to the 1000 default" {
   for v in 0 banana; do
     use_fixture vscode-copilot.jsonl
     AMIR_LOOP_MAX="$v" run run_hook
-    grep -q '^max_iterations: 1000$' "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md"
+    grep -q '^max_iterations: 1000$' "$TEST_STATE"
     rm -rf "$BATS_TEST_TMPDIR/.claude"
   done
 }

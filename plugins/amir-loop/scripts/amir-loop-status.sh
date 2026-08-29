@@ -12,8 +12,16 @@
 # digits-only number out of a field that failed that test - a diagnostic that
 # reports a healthy loop the hook has already discarded is worse than none.
 set -uo pipefail
+shopt -s nullglob
+SESSION_STATES=("$PWD"/.claude/amir-loop.*.local.md)
 S="$PWD/.claude/amir-loop.local.md"
-if [ ! -f "$S" ]; then
+if [ "${#SESSION_STATES[@]}" -gt 0 ]; then
+  echo "state: armed"
+  echo "sessions: ${#SESSION_STATES[@]}"
+  for SESSION_STATE in "${SESSION_STATES[@]}"; do
+    echo "session state: $SESSION_STATE"
+  done
+elif [ ! -f "$S" ]; then
   echo "state: idle"
 else
   FM=$(sed -n '/^---$/,/^---$/{ /^---$/d; p; }' "$S" 2>/dev/null)
