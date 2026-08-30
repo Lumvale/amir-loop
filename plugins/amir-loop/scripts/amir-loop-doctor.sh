@@ -97,6 +97,37 @@ fi
 [ -f "$PWD/.claude/amir-loop-off" ] && warn "kill switch present: .claude/amir-loop-off - the hook will not re-arm"
 [ "${AMIR_LOOP_OFF:-0}" = "1" ] && warn "AMIR_LOOP_OFF=1 is set in this environment"
 
+# --- cross-host installation parity ---
+# The plugin version is intentionally stable at 1.0.0 while Codex cache-busts installs, so
+# comparing manifest versions cannot detect a stale VS Code or Claude copy. Compare the actual
+# shared hook fingerprint instead. Missing hosts are informational; a present-but-different copy
+# is actionable because that host will behave differently from the doctor being run now.
+BASE_HOOK="$(cd "$(dirname "$0")/.." && pwd)/hooks/amir-loop-stop.sh"
+BASE_SUM=$(cksum "$BASE_HOOK" 2>/dev/null | awk '{print $1 ":" $2}')
+HOST_COPIES=()
+for _copy in \
+  "$HOME"/.codex/plugins/cache/lumvale/amir-loop/*/hooks/amir-loop-stop.sh \
+  "$HOME"/.vscode/agent-plugins/github.com/Lumvale/amir-loop/plugins/amir-loop/hooks/amir-loop-stop.sh \
+  "$HOME"/.claude/plugins/cache/lumvale/amir-loop/*/hooks/amir-loop-stop.sh \
+  "$HOME"/.gemini/config/plugins/amir-loop/hooks/amir-loop-stop.sh; do
+  [ -f "$_copy" ] && HOST_COPIES+=("$_copy")
+done
+if [ "${#HOST_COPIES[@]}" -eq 0 ]; then
+  ok "cross-host parity: no other installed Amir Loop copies found under HOME"
+else
+  _drift=0
+  for _copy in "${HOST_COPIES[@]}"; do
+    _sum=$(cksum "$_copy" 2>/dev/null | awk '{print $1 ":" $2}')
+    if [ -n "$BASE_SUM" ] && [ "$_sum" = "$BASE_SUM" ]; then
+      ok "cross-host copy matches: $_copy"
+    else
+      warn "cross-host copy differs from this plugin: $_copy"
+      _drift=1
+    fi
+  done
+  [ "$_drift" = "0" ] && ok "cross-host parity: all discovered copies match"
+fi
+
 # --- Codex notify hook ---
 # Codex runs `notify` as a host-level after-agent hook, independently of Amir Loop's
 # Stop hook. On Windows, an oversized command can fail before the loop gets control.

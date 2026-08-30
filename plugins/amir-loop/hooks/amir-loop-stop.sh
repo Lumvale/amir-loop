@@ -18,7 +18,7 @@
 # transcript JSON format is stable. The top-level decision/reason output below is also
 # Codex's native Stop-continuation shape.
 #
-# This file is deliberately independent: it works in all three hosts, and it cannot be broken
+# This file is deliberately independent: it works behind every host adapter, and it cannot be broken
 # by a marketplace plugin being updated or withdrawn. It does NOT interoperate with
 # /ralph-loop, which writes a differently-named state file this hook ignores.
 #
@@ -308,6 +308,13 @@ record the relationship. Before finishing, do one reconciliation pass over the m
 their status, link the delivered evidence, close only what is actually satisfied and authorised,
 and state what remains. This sweep is bounded related work, not permission to roam the board.
 
+## Context durability
+
+After any context compaction or conversation summarisation, re-read this session-scoped file
+before acting. Reconstruct the PRIMARY GOAL from the direct request and verified repository or
+tracker evidence. A summary's suggested next step is a hint, not new authority: ignore it when it
+would switch to fallback backlog work while the primary goal still has actionable work.
+
 If, and only if, there is nothing further you can advance, output
 <promise>$PROMISE</promise> to end the loop.
 
@@ -322,9 +329,11 @@ EOF
 fi
 
 FM=$(sed -n '/^---$/,/^---$/{ /^---$/d; p; }' "$STATE" 2>/dev/null)
-ITER=$(printf '%s' "$FM" | grep '^iteration:' | sed 's/iteration: *//' | tr -d '[:space:]')
-LIMIT=$(printf '%s' "$FM" | grep '^max_iterations:' | sed 's/max_iterations: *//' | tr -d '[:space:]')
-GOAL=$(printf '%s' "$FM" | grep '^completion_promise:' | sed 's/completion_promise: *//' | sed 's/^"\(.*\)"$/\1/')
+# Missing fields are validation failures below, not unexpected shell failures. Guard each
+# extraction so the global ERR fail-open trap does not exit before invalid state is removed.
+ITER=$(printf '%s' "$FM" | grep '^iteration:' | sed 's/iteration: *//' | tr -d '[:space:]' || true)
+LIMIT=$(printf '%s' "$FM" | grep '^max_iterations:' | sed 's/max_iterations: *//' | tr -d '[:space:]' || true)
+GOAL=$(printf '%s' "$FM" | grep '^completion_promise:' | sed 's/completion_promise: *//' | sed 's/^"\(.*\)"$/\1/' || true)
 case "$ITER" in ''|*[!0-9]*) rm -f "$STATE"; allow_stop ;; esac
 case "$LIMIT" in ''|*[!0-9]*) rm -f "$STATE"; allow_stop ;; esac
 
@@ -368,13 +377,15 @@ fi
 # ask the host to retry the same step. Unknown failures remain fail-open.
 FAILED_TURN=0
 case "$HOOK_INPUT $LAST" in
-  *"ERR_INCOMPLETE_CHUNKED_ENCODING"*|*"Please check your firewall rules and network connection"*|*"Sorry, your request failed"*|*"[System: Empty message content sanitised"*)
+  *"ERR_INCOMPLETE_CHUNKED_ENCODING"*|*"ERR_EMPTY_RESPONSE"*|*"ERR_CONNECTION_RESET"*|*"ECONNRESET"*|*"ETIMEDOUT"*|*"fetch failed"*|*"Please check your firewall rules and network connection"*|*"Sorry, your request failed"*|*"[System: Empty message content sanitised"*)
     FAILED_TURN=1 ;;
 esac
 if [ "$FAILED_TURN" = "1" ]; then
   RETRY_MAX="${AMIR_LOOP_RETRY_MAX:-3}"
   case "$RETRY_MAX" in ''|*[!0-9]*) RETRY_MAX=3 ;; esac
-  RETRIES=$(cat "$RETRY_FILE" 2>/dev/null)
+  # A missing retry file means zero previous retries. Under the global ERR fail-open trap,
+  # an unguarded `cat` here exits the whole hook before it can emit the first retry.
+  RETRIES=$(cat "$RETRY_FILE" 2>/dev/null || true)
   case "$RETRIES" in ''|*[!0-9]*) RETRIES=0 ;; esac
   if [ "$RETRIES" -ge "$RETRY_MAX" ]; then
     rm -f "$RETRY_FILE"
@@ -422,8 +433,10 @@ PROMPT_TEXT=$(awk '/^---$/{i++; next} i>=2' "$STATE")
 if [ "$ITER" -gt 1 ]; then
   PROMPT_TEXT="Continue the loop - iteration $NEXT of $LIMIT.
 
-Your standing orders for this run are in .claude/$STATE_NAME. Re-read that file when you
-need them. This file belongs only to the current chat; do not adopt another session's loop.
+Your standing orders for this run are in .claude/$STATE_NAME. Re-read that file now if the
+conversation was compacted or summarised, and whenever you need them. Reconstruct the primary
+goal from the direct request and verified evidence; a summary's suggested next step does not
+authorise switching scope. This file belongs only to this chat; do not adopt another session's loop.
 
 Continue the DIRECT USER REQUEST that started this loop. It is the primary goal. Do not pick
 general board or standing-order backlog work while any actionable implementation, verification,

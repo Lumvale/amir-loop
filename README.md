@@ -7,7 +7,7 @@ it is bounded on two independent axes: a per-session turn cap and a calendar win
 The loop ends when either bound trips, or when the agent emits
 `<promise>AMIR LOOP COMPLETE</promise>` after concluding there is truly nothing left
 to advance. Its distinguishing property is that it runs in **Claude Code, VS Code
-Copilot Chat, and Codex**: it emits the block decision in each host's own shape and
+Copilot Chat, Codex, and Google Antigravity**: it emits the continuation decision in each host's own shape and
 uses each host's stable final-message surface rather than assuming Claude Code's
 transcript format.
 
@@ -52,6 +52,17 @@ prompted. Codex hashes hook definitions, so a changed hook must be reviewed agai
 it runs. The hook works in the Codex CLI, Codex IDE extension, and Codex desktop task
 surfaces that run the local Codex lifecycle.
 
+### Google Antigravity
+
+Copy `plugins/amir-loop` into the global Antigravity customization root as
+`~/.gemini/config/plugins/amir-loop`, or register its parent directory in Antigravity's
+`plugins.json`. The root `plugin.json` and `hooks.json` are Antigravity-native; its
+PowerShell adapter translates camelCase lifecycle input and the `decision: continue`
+Stop result to and from the shared loop implementation.
+
+On Windows, restart Antigravity after installing or updating the plugin so it reloads
+the hook definition. Existing conversations do not retroactively acquire a changed hook.
+
 ## Windows prerequisite
 
 Claude and Copilot invoke `bash "${CLAUDE_PLUGIN_ROOT}/hooks/amir-loop-stop.sh"`, so
@@ -69,7 +80,7 @@ to the active `git.exe`, avoiding accidental resolution to WSL's `bash.exe`. Run
 | `/amir-loop-cancel` | Cancels active loops in the project: removes their session-scoped state files and writes a `.claude/amir-loop-off` kill switch, so the hook does not simply re-arm on the next turn. |
 | `/amir-loop-status` | Shows the current loop state for this project (idle, armed with iteration/limit, or invalid) without mutating anything. |
 | `/amir-loop-init` | Scaffolds a `.claude/amir-loop-principles.md` file from `templates/principles/`, if one does not already exist here. Never overwrites an existing principles file. |
-| `/amir-loop-doctor` | Diagnoses why the loop is or is not working on this machine — bash resolution, vendored `jq`, and conflicting Stop-hook registrations — and states a concrete fix for each failure. |
+| `/amir-loop-doctor` | Diagnoses why the loop is or is not working on this machine — bash resolution, vendored `jq`, conflicting Stop-hook registrations, and stale copies across supported hosts — and states a concrete fix for each failure. |
 
 ## Configuration
 
@@ -112,6 +123,20 @@ by the same fix, but it must preserve merely similar items whose scope or accept
 differ. It reconciles links and statuses again before completion without turning that search into
 general backlog work.
 
+After a host compacts or summarises a long conversation, every continuation explicitly tells
+the agent to re-read its session-scoped state and reconstruct the direct primary goal from
+verified evidence. A summary's suggested next step cannot silently promote fallback backlog
+work over unfinished direct work.
+
+## Host boundaries
+
+A Stop hook can recover a transport failure only when the host actually invokes Stop and
+includes the failure in the hook payload or final message. Some VS Code Copilot request errors
+(including observed `ERR_EMPTY_RESPONSE` failures) abort before Stop receives the error; no
+plugin can retry an event it was never called for. Amir Loop recognises common transient codes
+when they are delivered, retries them within `AMIR_LOOP_RETRY_MAX`, and otherwise fails open so
+the host can expose its own **Try Again** action.
+
 ## Conflicts
 
 Only one Stop hook should be registered per host at a time.
@@ -151,7 +176,7 @@ Tests are written with [bats](https://github.com/bats-core/bats-core):
 bats tests/
 ```
 
-53 tests across 6 suites (`bounds`, `doctor`, `failopen`, `invariants`, `parity`, `status`).
+73 tests across 7 suites (`antigravity`, `bounds`, `doctor`, `failopen`, `invariants`, `parity`, `status`).
 CI runs this suite on a 3-OS matrix (Ubuntu, macOS, Windows) on every push and pull
 request.
 

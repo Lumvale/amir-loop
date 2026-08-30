@@ -293,6 +293,26 @@ EOF
   [ ! -f "$BATS_TEST_TMPDIR/.claude/.amir-loop-retry-s1" ]
 }
 
+@test "common transport error codes use the bounded retry path" {
+  for signal in ERR_EMPTY_RESPONSE ERR_CONNECTION_RESET ECONNRESET ETIMEDOUT "fetch failed"; do
+    rm -f "$BATS_TEST_TMPDIR/.claude/.amir-loop-retry-s1"
+    arm_state 1 10
+    CODEX_LAST_ASSISTANT="$signal" run run_codex_hook
+    [ "$status" -eq 0 ]
+    [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+    grep -q '^iteration: 1$' "$TEST_STATE"
+  done
+}
+
+@test "continuation prompt restores the direct goal after compaction" {
+  arm_state 2 10
+  CODEX_LAST_ASSISTANT="work remains" run run_codex_hook
+  [ "$status" -eq 0 ]
+  reason=$(echo "$output" | jq -r '.reason')
+  echo "$reason" | grep -qi 'compacted or summarised'
+  echo "$reason" | grep -q "summary's suggested next step does not"
+}
+
 @test "Codex Windows hook expands PLUGIN_ROOT with PowerShell syntax" {
   local hooks="$BATS_TEST_DIRNAME/../plugins/amir-loop/hooks/hooks.json"
   run jq -r '.hooks.Stop[0].hooks[0].commandWindows' "$hooks"
@@ -305,7 +325,7 @@ EOF
   local hooks="$BATS_TEST_DIRNAME/../plugins/amir-loop/hooks/hooks.json"
   run jq -r '.hooks.Stop[0].hooks[0].command' "$hooks"
   [ "$status" -eq 0 ]
-  [[ "$output" == *'$CODEX_PLUGIN_ROOT'* ]]
+  [[ "$output" == *'CODEX_PLUGIN_ROOT'* ]]
   [[ "$output" != *'${CLAUDE_PLUGIN_ROOT}'* ]]
 }
 

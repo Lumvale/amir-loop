@@ -16,6 +16,25 @@ setup() {
   echo "$output" | grep -qE '^ok: +bash'
 }
 
+@test "doctor warns when another host has a different hook copy" {
+  copy="$HOME/.gemini/config/plugins/amir-loop/hooks/amir-loop-stop.sh"
+  mkdir -p "$(dirname "$copy")"
+  printf '%s\n' '# stale Antigravity copy' > "$copy"
+  run bash "$DOCTOR"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q 'warn:.*cross-host copy differs.*\.gemini'
+}
+
+@test "doctor reports matching cross-host hook copies" {
+  copy="$HOME/.vscode/agent-plugins/github.com/Lumvale/amir-loop/plugins/amir-loop/hooks/amir-loop-stop.sh"
+  mkdir -p "$(dirname "$copy")"
+  cp "$BATS_TEST_DIRNAME/../plugins/amir-loop/hooks/amir-loop-stop.sh" "$copy"
+  run bash "$DOCTOR"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q 'ok:.*cross-host copy matches.*vscode'
+  echo "$output" | grep -q 'ok:.*cross-host parity: all discovered copies match'
+}
+
 @test "doctor names the principles file in effect" {
   mkdir -p "$BATS_TEST_TMPDIR/.claude"
   echo "orders" > "$BATS_TEST_TMPDIR/.claude/amir-loop-principles.md"
