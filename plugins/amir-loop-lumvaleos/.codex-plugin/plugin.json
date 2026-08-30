@@ -1,0 +1,23 @@
+{
+  "name": "amir-loop-lumvaleos",
+  "version": "0.1.0+codex.20260830161500",
+  "description": "Adds the governed LumvaleOS dependency profile to Amir Loop projects.",
+  "author": {
+    "name": "Lumvale",
+    "email": "amir@lumvale.com",
+    "url": "https://github.com/Lumvale"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Amir Loop Lumvaleos",
+    "shortDescription": "Require LumvaleOS governance in Amir Loop",
+    "longDescription": "Configures Amir Loop to preflight LumvaleOS and fail closed for governed Lumvale fleet work while preserving a safe resumable blocked state.",
+    "developerName": "Lumvale",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": "Configure this project to use the required LumvaleOS profile with Amir Loop."
+  }
+}

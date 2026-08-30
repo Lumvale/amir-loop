@@ -36,14 +36,17 @@ case "$(uname -s 2>/dev/null)" in
   *) _cand="" ;;
 esac
 if [ -n "$_cand" ] && "$_cand" --version >/dev/null 2>&1; then
+  JQ="$_cand"
   ok "jq  vendored ($_cand)"
 elif [ -n "$_cand" ] && [ -e "$_cand" ]; then
   if command -v jq >/dev/null 2>&1; then
+    JQ="jq"
     warn "jq  vendored binary present but does not run on this platform ($_cand) - falling back to PATH jq ($(command -v jq))"
   else
     fail "jq  vendored binary present but does not run here ($_cand), and no jq on PATH - the loop will allow every stop and appear broken"
   fi
 elif command -v jq >/dev/null 2>&1; then
+  JQ="jq"
   warn "jq  from PATH ($(command -v jq)) - vendored binary missing for this platform"
 else
   fail "jq  not found - no vendored binary for this platform and none on PATH - the loop will allow every stop and appear broken"
@@ -83,6 +86,23 @@ while [ -n "$_dir" ]; do
   _p=$(dirname "$_dir"); [ "$_p" = "$_dir" ] && break; _dir="$_p"
 done
 [ -n "$FOUND" ] && ok "principles: $FOUND" || warn "principles: none found from $PWD upwards - the generic body will be used"
+
+# --- runtime dependency policy, CWD upwards ---
+_dir="$PWD"; POLICY=""
+while [ -n "$_dir" ]; do
+  [ -f "$_dir/.claude/amir-loop-dependencies.json" ] && { POLICY="$_dir/.claude/amir-loop-dependencies.json"; break; }
+  _p=$(dirname "$_dir"); [ "$_p" = "$_dir" ] && break; _dir="$_p"
+done
+if [ -z "$POLICY" ]; then
+  ok "dependencies: no policy found (portable default: off)"
+elif "$JQ" -e '.version == 1 and (.dependencies | type == "array") and all(.dependencies[]; (.id | type == "string" and length > 0) and (.policy == "required" or .policy == "preferred" or .policy == "off"))' "$POLICY" >/dev/null 2>&1; then
+  ok "dependencies: valid policy $POLICY"
+  while IFS=$'\t' read -r _id _policy; do
+    ok "dependency $_id: $_policy"
+  done < <("$JQ" -r '.dependencies[] | [.id, .policy] | @tsv' "$POLICY")
+else
+  fail "dependencies: invalid policy $POLICY - expected version 1 and policies required, preferred, or off"
+fi
 
 # --- current loop state ---
 shopt -s nullglob

@@ -50,16 +50,61 @@ mkdir -p .claude 2>/dev/null || { echo "error: cannot create .claude here" >&2; 
 # searched from CWD upwards, like .gitignore or .editorconfig. See amir-loop-stop.sh's
 # principles-resolution block for why this must climb rather than check CWD alone.
 PRINCIPLES=""
+DEPENDENCIES=""
 _dir="$PWD"
 while [ -n "$_dir" ]; do
-  if [ -f "$_dir/.claude/amir-loop-principles.md" ]; then
+  if [ -z "$PRINCIPLES" ] && [ -f "$_dir/.claude/amir-loop-principles.md" ]; then
     PRINCIPLES="$_dir/.claude/amir-loop-principles.md"
-    break
   fi
+  if [ -z "$DEPENDENCIES" ] && [ -f "$_dir/.claude/amir-loop-dependencies.json" ]; then
+    DEPENDENCIES="$_dir/.claude/amir-loop-dependencies.json"
+  fi
+  [ -n "$PRINCIPLES" ] && [ -n "$DEPENDENCIES" ] && break
   _parent=$(dirname "$_dir")
   [ "$_parent" = "$_dir" ] && break
   _dir="$_parent"
 done
+
+DEPENDENCY_BRIEF=""
+if [ -n "$DEPENDENCIES" ]; then
+  _vendor="$(cd "$(dirname "$0")/.." && pwd)/vendor/jq"
+  case "$(uname -s 2>/dev/null)" in
+    Linux) _cand="$_vendor/jq-linux-amd64" ;;
+    Darwin) case "$(uname -m 2>/dev/null)" in arm64) _cand="$_vendor/jq-macos-arm64";; *) _cand="$_vendor/jq-macos-amd64";; esac ;;
+    MINGW*|MSYS*|CYGWIN*) _cand="$_vendor/jq-windows-amd64.exe" ;;
+    *) _cand="" ;;
+  esac
+  if [ -n "$_cand" ] && "$_cand" --version >/dev/null 2>&1; then
+    JQ="$_cand"
+  elif command -v jq >/dev/null 2>&1; then
+    JQ="jq"
+  else
+    JQ=""
+  fi
+  if [ -n "$JQ" ] && "$JQ" -e '
+    .version == 1 and (.dependencies | type == "array") and
+    all(.dependencies[]; (.id | type == "string" and length > 0) and
+      (.policy == "required" or .policy == "preferred" or .policy == "off") and
+      ((.kind // "tool") | type == "string") and
+      ((.preflight // "") | type == "string") and
+      ((.repair // "") | type == "string"))
+  ' "$DEPENDENCIES" >/dev/null 2>&1; then
+    DEPENDENCY_BRIEF=$("$JQ" -r '["## Runtime dependency policy", "",
+      "Before substantive work, preflight each dependency below once for this run.",
+      (.dependencies[] | select(.policy != "off") |
+        "- " + .id + " (" + (.kind // "tool") + ", " + .policy + "): " +
+        (.preflight // "probe that the capability is callable") +
+        (if (.repair // "") == "" then "" else " Repair: " + .repair end)), "",
+      "A failed required dependency must stop substantive work. Report the repair and output",
+      "<amir-loop-blocked>DEPENDENCY_ID</amir-loop-blocked>. Preferred dependencies may degrade",
+      "with one explicit warning; off dependencies are skipped."] | join("\n")' "$DEPENDENCIES")
+  else
+    DEPENDENCY_BRIEF="## Runtime dependency policy
+
+The dependency policy at $DEPENDENCIES is invalid. Do not begin substantive work; report the
+schema error and output <amir-loop-blocked>dependency-policy</amir-loop-blocked>."
+  fi
+fi
 
 if [ "$CANCEL" = "1" ]; then
   rm -f .claude/amir-loop.local.md .claude/amir-loop.pending.local.md .claude/amir-loop.*.local.md
@@ -99,6 +144,9 @@ EOF
   if [ -f "$PRINCIPLES" ]; then
     printf '\n'
     cat "$PRINCIPLES"
+  fi
+  if [ -n "$DEPENDENCY_BRIEF" ]; then
+    printf '\n\n%s\n' "$DEPENDENCY_BRIEF"
   fi
   cat <<EOF
 

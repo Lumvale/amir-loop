@@ -132,16 +132,64 @@ fi
 # C:\lumvale\.claude - without this it silently armed with the bare generic body, which
 # is how two sub-repo loops ended up running with no backlog rules at all.
 PRINCIPLES=""
+DEPENDENCIES=""
 _dir="$CWD"
 while [ -n "$_dir" ]; do
-  if [ -f "$_dir/.claude/amir-loop-principles.md" ]; then
+  if [ -z "$PRINCIPLES" ] && [ -f "$_dir/.claude/amir-loop-principles.md" ]; then
     PRINCIPLES="$_dir/.claude/amir-loop-principles.md"
-    break
   fi
+  if [ -z "$DEPENDENCIES" ] && [ -f "$_dir/.claude/amir-loop-dependencies.json" ]; then
+    DEPENDENCIES="$_dir/.claude/amir-loop-dependencies.json"
+  fi
+  [ -n "$PRINCIPLES" ] && [ -n "$DEPENDENCIES" ] && break
   _parent=$(dirname "$_dir")
   [ "$_parent" = "$_dir" ] && break
   _dir="$_parent"
 done
+
+# Dependencies are a portable project policy, not a hard-coded vendor integration. The
+# hook validates and renders the contract into the loop brief; the agent performs the
+# actual capability probe because only the host knows which MCP/tools are live.
+DEPENDENCY_BRIEF=""
+if [ -n "$DEPENDENCIES" ]; then
+  if "$JQ" -e '
+    .version == 1 and (.dependencies | type == "array") and
+    all(.dependencies[];
+      (.id | type == "string" and length > 0) and
+      (.policy == "required" or .policy == "preferred" or .policy == "off") and
+      ((.kind // "tool") | type == "string") and
+      ((.preflight // "") | type == "string") and
+      ((.repair // "") | type == "string"))
+  ' "$DEPENDENCIES" >/dev/null 2>&1; then
+    DEPENDENCY_BRIEF=$("$JQ" -r '
+      ["## Runtime dependency policy",
+       "",
+       "Before substantive work, preflight each dependency below once for this run. Do not",
+       "claim a dependency was used unless its tool call succeeded in this session.",
+       "",
+       (.dependencies[] | select(.policy != "off") |
+         "- " + .id + " (" + (.kind // "tool") + ", " + .policy + "): " +
+         (.preflight // "probe that the capability is callable") +
+         (if (.repair // "") == "" then "" else " Repair: " + .repair end)),
+       "",
+       "Policy semantics:",
+       "- required: if its preflight fails, do not substitute an ungoverned path or begin",
+       "  substantive work. Report the failure and repair, then output",
+       "  <amir-loop-blocked>DEPENDENCY_ID</amir-loop-blocked>. This pauses the loop safely",
+       "  without declaring the goal complete; a later human turn can resume it.",
+       "- preferred: use it when available. If unavailable, report the degraded mode once and",
+       "  continue with the best safe fallback.",
+       "- off: no preflight or use is required."] | join("\n")
+    ' "$DEPENDENCIES" 2>/dev/null) || DEPENDENCY_BRIEF=""
+  else
+    DEPENDENCY_BRIEF="## Runtime dependency policy
+
+The dependency policy at $DEPENDENCIES is invalid. Treat policy configuration as a required
+dependency failure: do not begin substantive work. Report that the file must use schema version
+1 with dependency id and policy required, preferred, or off, then output
+<amir-loop-blocked>dependency-policy</amir-loop-blocked>."
+  fi
+fi
 
 # --- calendar window ---------------------------------------------------------------
 DEADLINE=""
@@ -271,6 +319,9 @@ EOF
       printf '\n'
       cat "$PRINCIPLES"
     fi
+    if [ -n "$DEPENDENCY_BRIEF" ]; then
+      printf '\n\n%s\n' "$DEPENDENCY_BRIEF"
+    fi
     cat <<EOF
 
 ## Goal precedence
@@ -349,6 +400,18 @@ finish() {
   exit 0
 }
 
+# A required runtime dependency can need a person to repair host configuration. Preserve
+# the state, but suppress repeated Stop evaluations for this same human turn. A new user
+# turn clears the marker above and resumes the same primary goal.
+suspend() {
+  if [ -n "$TURN_ID" ]; then
+    printf 'turn:%s\n' "$TURN_ID" > "$MARKER" 2>/dev/null
+  else
+    user_turns > "$MARKER" 2>/dev/null
+  fi
+  exit 0
+}
+
 # Turn cap reached -> a legitimate end.
 [ "$LIMIT" -gt 0 ] && [ "$ITER" -ge "$LIMIT" ] && finish
 
@@ -408,6 +471,10 @@ if [ "$FAILED_TURN" = "1" ]; then
 fi
 rm -f "$RETRY_FILE"
 [ -n "$LAST" ] || allow_stop
+
+case "$LAST" in
+  *"<amir-loop-blocked>"*"</amir-loop-blocked>"*) suspend ;;
+esac
 
 if [ -n "$GOAL" ] && [ "$GOAL" != "null" ]; then
   case "$LAST" in

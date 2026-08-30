@@ -10,6 +10,13 @@
       "author": { "name": "Amir", "email": "amir@lumvale.com" },
       "source": "./plugins/amir-loop",
       "category": "development"
+    },
+    {
+      "name": "amir-loop-lumvaleos",
+      "description": "Adds a required, preferred, or off LumvaleOS governance profile to Amir Loop without registering a second Stop hook.",
+      "author": { "name": "Amir", "email": "amir@lumvale.com" },
+      "source": "./plugins/amir-loop-lumvaleos",
+      "category": "development"
     }
   ]
 }
