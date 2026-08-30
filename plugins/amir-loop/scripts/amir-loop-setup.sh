@@ -19,6 +19,18 @@ PROMISE="AMIR LOOP COMPLETE"
 CANCEL=0
 PARTS=()
 
+# --cancel and -h/--help have no legitimate use mixed into a free-text prompt: --cancel
+# is only ever invoked by the dedicated /amir-loop-cancel command (always alone, as its
+# sole argument), and -h/--help is a human running this script directly to read usage.
+# /amir-loop, by contrast, forwards a user-typed prompt verbatim as $ARGUMENTS - a prompt
+# that happens to start with the word "-h" or "--cancel" must arm a loop with that text,
+# not be swallowed as a flag. Restricting those two spellings to "this is the only
+# argument" preserves every real caller while treating a multi-word prompt beginning
+# with either word as what it is: text. --max-iterations and --completion-promise stay
+# recognized anywhere in the argument list, since the command's own argument-hint
+# documents them as usable alongside a prompt.
+ORIG_ARGC=$#
+
 LITERAL=0
 while [ $# -gt 0 ]; do
   if [ "$LITERAL" = "1" ]; then
@@ -26,7 +38,8 @@ while [ $# -gt 0 ]; do
   fi
   case "$1" in
     --) LITERAL=1; shift ;;
-    --cancel) CANCEL=1; shift ;;
+    --cancel)
+      if [ "$ORIG_ARGC" -eq 1 ]; then CANCEL=1; shift; else PARTS+=("$1"); shift; fi ;;
     --max-iterations)
       case "${2:-}" in
         ''|*[!0-9]*) echo "error: --max-iterations needs a whole number, got '${2:-}'" >&2; exit 1 ;;
@@ -36,7 +49,11 @@ while [ $# -gt 0 ]; do
       [ -n "${2:-}" ] || { echo "error: --completion-promise needs text (quote multi-word)" >&2; exit 1; }
       PROMISE="$2"; shift 2 ;;
     -h|--help)
-      sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+      if [ "$ORIG_ARGC" -eq 1 ]; then
+        sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0
+      else
+        PARTS+=("$1"); shift
+      fi ;;
     *) PARTS+=("$1"); shift ;;
   esac
 done

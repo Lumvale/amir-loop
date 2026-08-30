@@ -13,16 +13,18 @@ ACTION="diagnose"
 case "${1:-}" in
   "") ;;
   --disable-codex-notify) ACTION="disable-codex-notify" ;;
+  --print-jq) ACTION="print-jq" ;;
   --help|-h)
-    printf '%s\n' "Usage: amir-loop-doctor.sh [--disable-codex-notify]"
+    printf '%s\n' "Usage: amir-loop-doctor.sh [--disable-codex-notify|--print-jq]"
     printf '%s\n' "  --disable-codex-notify  Back up Codex config and remove its top-level notify hook"
+    printf '%s\n' "  --print-jq              Print the resolved jq path/name and exit (test-only)"
     exit 0
     ;;
   *) printf 'FAIL: unknown option: %s\n' "$1"; exit 1 ;;
 esac
-ok()   { printf 'ok:   %s\n' "$*"; }
-warn() { printf 'warn: %s\n' "$*"; }
-fail() { printf 'FAIL: %s\n' "$*"; RC=1; }
+ok()   { [ "$ACTION" = "print-jq" ] || printf 'ok:   %s\n' "$*"; }
+warn() { [ "$ACTION" = "print-jq" ] || printf 'warn: %s\n' "$*"; }
+fail() { [ "$ACTION" = "print-jq" ] || printf 'FAIL: %s\n' "$*"; RC=1; }
 
 # --- bash ---
 ok "bash ${BASH_VERSION%%(*} at $(command -v bash)"
@@ -50,6 +52,13 @@ elif command -v jq >/dev/null 2>&1; then
   warn "jq  from PATH ($(command -v jq)) - vendored binary missing for this platform"
 else
   fail "jq  not found - no vendored binary for this platform and none on PATH - the loop will allow every stop and appear broken"
+fi
+
+# Test-only: report the resolved jq and stop, so tests/parity.bats can assert this
+# matches the hook's own resolution without reimplementing the platform mapping.
+if [ "$ACTION" = "print-jq" ]; then
+  printf '%s\n' "${JQ:-}"
+  exit "$RC"
 fi
 
 # --- Windows-only path translation ---
