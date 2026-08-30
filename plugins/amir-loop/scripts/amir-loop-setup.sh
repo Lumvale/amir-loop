@@ -114,6 +114,27 @@ Project standing orders and their backlog rules are FALLBACK WORK. Consult or se
 that backlog only after the primary goal is genuinely exhausted. An oldest-first or
 highest-priority rule must never pre-empt unfinished work from the explicit prompt.
 
+## Related-work reconciliation
+
+Treat directly related tracker items and open pull requests as part of the PRIMARY GOAL.
+Once the request is understood, perform one bounded search of the relevant repositories,
+issue trackers, boards, and open pull requests using the component, symptoms, identifiers,
+root cause, and intended outcome. Reuse existing investigation and avoid filing duplicates.
+
+Classify credible matches before acting:
+
+- CONFIRMED DUPLICATE: same root cause and materially the same required outcome. Select a
+  canonical item, cross-link evidence, and close the duplicate only when authorised and the
+  canonical item represents all remaining acceptance criteria.
+- CO-RESOLVABLE: distinct tracked work safely completed by the same coherent implementation
+  and verification. Include it and update or close it with delivered evidence.
+- RELATED BUT DISTINCT: overlapping context but a different root cause, scope, or acceptance
+  criteria. Link it and leave it open; do not expand the current goal.
+
+Never infer duplication from title similarity alone. Before finishing, reconcile the matches,
+link delivered evidence, and close only work that is actually satisfied and authorised. This
+is bounded related work, not permission to roam the board.
+
 If, and only if, the work above is genuinely finished and verified, output
 <promise>$PROMISE</promise> to end the loop.
 

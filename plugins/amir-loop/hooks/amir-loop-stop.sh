@@ -286,6 +286,28 @@ that backlog only after the primary goal is genuinely exhausted. If a standing o
 to pick the oldest or highest-priority board item, that instruction applies only at this
 fallback boundary and must never pre-empt unfinished work from the direct request.
 
+## Related-work reconciliation
+
+Treat directly related tracker items and open pull requests as part of the PRIMARY GOAL.
+Once you understand the request, perform one bounded search of the relevant repositories,
+issue trackers, boards, and open pull requests using the component, symptoms, identifiers,
+root cause, and intended outcome. Reuse existing investigation and avoid filing duplicates.
+
+Classify every credible match before acting:
+
+- CONFIRMED DUPLICATE: the same root cause and materially the same required outcome. Choose
+  one canonical item, cross-link the evidence, and close the duplicate only when closure is
+  authorised and the canonical item fully represents its remaining acceptance criteria.
+- CO-RESOLVABLE: distinct tracked work that the same coherent implementation and verification
+  can safely complete. Include it in the primary-goal change and update or close it with evidence.
+- RELATED BUT DISTINCT: overlapping symptoms or component, but a different root cause, scope,
+  or acceptance criteria. Link it for context and leave it open; do not expand the current goal.
+
+Never declare duplication from title similarity alone. When uncertain, preserve both items and
+record the relationship. Before finishing, do one reconciliation pass over the matches: update
+their status, link the delivered evidence, close only what is actually satisfied and authorised,
+and state what remains. This sweep is bounded related work, not permission to roam the board.
+
 If, and only if, there is nothing further you can advance, output
 <promise>$PROMISE</promise> to end the loop.
 
@@ -407,6 +429,11 @@ Continue the DIRECT USER REQUEST that started this loop. It is the primary goal.
 general board or standing-order backlog work while any actionable implementation, verification,
 delivery, pending check, follow-up, or workaround remains for that direct request. Backlog work is
 fallback work only after the primary goal is genuinely exhausted.
+
+If you have not yet done so, perform one BOUNDED RELATED-WORK SWEEP for this direct request across
+the relevant issue trackers, boards, and open pull requests. Consolidate only confirmed duplicates,
+include co-resolvable items covered by the same fix, and link but preserve related-distinct items.
+Do not repeat searches without new evidence, and do not use this sweep to switch to general backlog.
 
 Take the next concrete step on the primary goal now. Do not reply with an empty message: if you
 have nothing to say, perform the next action instead.

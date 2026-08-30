@@ -106,6 +106,10 @@ EOF
   principles_line=$(grep -n "Pick the oldest board story" "$state" | cut -d: -f1)
   precedence_line=$(grep -n "## Goal precedence" "$state" | cut -d: -f1)
   [ "$precedence_line" -gt "$principles_line" ]
+  grep -q "## Related-work reconciliation" "$state"
+  grep -q "CONFIRMED DUPLICATE" "$state"
+  grep -q "CO-RESOLVABLE" "$state"
+  grep -q "RELATED BUT DISTINCT" "$state"
 }
 
 @test "manual setup gives its explicit prompt precedence over standing orders" {
@@ -122,6 +126,20 @@ EOF
   principles_line=$(grep -n "Pick the oldest board story" "$state" | cut -d: -f1)
   precedence_line=$(grep -n "## Goal precedence" "$state" | cut -d: -f1)
   [ "$precedence_line" -gt "$principles_line" ]
+  grep -q "## Related-work reconciliation" "$state"
+  grep -q "Never infer duplication from title similarity alone" "$state"
+}
+
+@test "continuation keeps related-work search bounded inside the direct goal" {
+  use_fixture vscode-copilot.jsonl
+  arm_state 5 10
+  run run_hook
+  [ "$status" -eq 0 ]
+  reason=$(echo "$output" | jq -r '.reason')
+  echo "$reason" | grep -q "BOUNDED RELATED-WORK SWEEP"
+  echo "$reason" | grep -q "Consolidate only confirmed duplicates"
+  echo "$reason" | grep -q "link but preserve related-distinct items"
+  echo "$reason" | grep -q "do not use this sweep to switch to general backlog"
 }
 
 @test "a legacy project-wide loop cannot take over a new session" {

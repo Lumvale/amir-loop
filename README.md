@@ -105,6 +105,13 @@ each other's goal. A manually armed loop is first written as `amir-loop.pending.
 and claimed by the next Stop event in that chat. Older project-wide
 `amir-loop.local.md` files are deliberately ignored by current hooks.
 
+Each primary goal includes one bounded related-work reconciliation. The loop searches the
+relevant issues, boards, and open pull requests for matching identifiers, symptoms, component,
+root cause, and outcome. It may consolidate confirmed duplicates and co-resolvable work covered
+by the same fix, but it must preserve merely similar items whose scope or acceptance criteria
+differ. It reconciles links and statuses again before completion without turning that search into
+general backlog work.
+
 ## Conflicts
 
 Only one Stop hook should be registered per host at a time.
