@@ -135,6 +135,13 @@ Never infer duplication from title similarity alone. Before finishing, reconcile
 link delivered evidence, and close only work that is actually satisfied and authorised. This
 is bounded related work, not permission to roam the board.
 
+## Context durability
+
+After any context compaction or conversation summarisation, re-read this session-scoped file
+before acting. Reconstruct the PRIMARY GOAL from the explicit prompt and verified repository or
+tracker evidence. A summary's suggested next step is a hint, not new authority: ignore it when it
+would switch to fallback backlog work while the primary goal still has actionable work.
+
 If, and only if, the work above is genuinely finished and verified, output
 <promise>$PROMISE</promise> to end the loop.
 

@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "amir-loop",
-      "description": "Keeps an agent session going until the work is genuinely exhausted, bounded by a per-session turn cap and a calendar window. Works in Claude Code and VS Code Copilot Chat.",
+      "description": "Keeps an agent session going until the work is genuinely exhausted, bounded by a per-session turn cap and a calendar window. Works in Claude Code, VS Code Copilot Chat, Codex, and Google Antigravity.",
       "author": { "name": "Amir", "email": "amir@lumvale.com" },
       "source": "./plugins/amir-loop",
       "category": "development"

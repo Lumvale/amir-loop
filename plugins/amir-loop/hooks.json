@@ -1,0 +1,11 @@
+{
+  "amir-loop": {
+    "Stop": [
+      {
+        "type": "command",
+        "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File hooks\\amir-loop-antigravity.ps1",
+        "timeout": 30
+      }
+    ]
+  }
+}
