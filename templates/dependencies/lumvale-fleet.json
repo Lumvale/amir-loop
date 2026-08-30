@@ -5,7 +5,7 @@
       "id": "lumvaleos",
       "kind": "mcp",
       "policy": "required",
-      "preflight": "Call a LumvaleOS status or knowledge capability and confirm it succeeds before substantive fleet work; then resolve standard-loop@v2 for governed workflow and backlog use.",
+      "preflight": "Call a LumvaleOS status or knowledge capability and confirm it succeeds before substantive fleet work; then resolve standard-loop@v2. Only after the direct goal is exhausted, call flow.next_due_playbook once before generic backlog selection and complete any returned lease with required evidence.",
       "repair": "Install or enable the LumvaleOS MCP for this host, restart the agent session, and retry the same goal. Do not replace it with an ungoverned tracker-only workflow."
     }
   ]

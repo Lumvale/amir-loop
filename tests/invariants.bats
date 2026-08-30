@@ -313,6 +313,24 @@ EOF
   echo "$reason" | grep -q "summary's suggested next step does not"
 }
 
+@test "continuation subordinates opportunity dispatch to the direct goal" {
+  arm_state 2 10
+  CODEX_LAST_ASSISTANT="work remains" run run_codex_hook
+  [ "$status" -eq 0 ]
+  reason=$(echo "$output" | jq -r '.reason')
+  echo "$reason" | grep -q 'flow.next_due_playbook'
+  echo "$reason" | grep -q 'fallback boundary'
+  echo "$reason" | grep -q 'Never make this call a reason to'
+}
+
+@test "durable brief governs learning promotion without self modification" {
+  run grep -q 'learning.discovered' "$BATS_TEST_DIRNAME/../plugins/amir-loop/hooks/amir-loop-stop.sh"
+  [ "$status" -eq 0 ]
+  run grep -q 'does not change priority, authorise self-modification' \
+    "$BATS_TEST_DIRNAME/../plugins/amir-loop/hooks/amir-loop-stop.sh"
+  [ "$status" -eq 0 ]
+}
+
 @test "Codex Windows hook expands PLUGIN_ROOT with PowerShell syntax" {
   local hooks="$BATS_TEST_DIRNAME/../plugins/amir-loop/hooks/hooks.json"
   run jq -r '.hooks.Stop[0].hooks[0].commandWindows' "$hooks"

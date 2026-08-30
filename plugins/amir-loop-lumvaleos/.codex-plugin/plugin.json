@@ -1,6 +1,6 @@
 {
   "name": "amir-loop-lumvaleos",
-  "version": "0.1.0+codex.20260830161500",
+  "version": "0.1.0+codex.20260830170000",
   "description": "Adds the governed LumvaleOS dependency profile to Amir Loop projects.",
   "author": {
     "name": "Lumvale",
