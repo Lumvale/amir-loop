@@ -43,6 +43,13 @@ setup() {
   echo "$output" | grep -q "amir-loop-principles.md"
 }
 
+@test "doctor reports portable dependency default when no policy exists" {
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$DOCTOR"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q 'dependencies: no policy found (portable default: off)'
+}
+
 @test "doctor FAILs when a conflicting ralph-loop stop hook is enabled" {
   run env AMIR_LOOP_FAKE_ENABLED_PLUGINS="ralph-loop@claude-plugins-official" bash "$DOCTOR"
   [ "$status" -eq 1 ]

@@ -47,6 +47,16 @@ codex plugin marketplace add Lumvale/amir-loop
 codex plugin add amir-loop@lumvale
 ```
 
+For governed Lumvale fleet work, also install the optional companion and configure the
+fleet root:
+
+```text
+codex plugin add amir-loop-lumvaleos@lumvale
+```
+
+The companion does not register a second Stop hook. It supplies the LumvaleOS policy
+and configuration skill used by the core loop.
+
 Start a new task after installation, open `/hooks`, and trust the Amir Loop hook when
 prompted. Codex hashes hook definitions, so a changed hook must be reviewed again before
 it runs. The hook works in the Codex CLI, Codex IDE extension, and Codex desktop task
@@ -116,6 +126,33 @@ each other's goal. A manually armed loop is first written as `amir-loop.pending.
 and claimed by the next Stop event in that chat. Older project-wide
 `amir-loop.local.md` files are deliberately ignored by current hooks.
 
+### Runtime dependency policy
+
+Projects may define `.claude/amir-loop-dependencies.json`, resolved from the working
+directory upwards just like the principles file. Each dependency has an `id`, `kind`,
+and policy: `required`, `preferred`, or `off`. Required dependencies fail closed before
+substantive work; preferred dependencies explicitly degrade once; off dependencies are
+ignored. A required dependency failure uses
+`<amir-loop-blocked>DEPENDENCY_ID</amir-loop-blocked>` to pause the current turn without
+declaring completion or discarding the session goal. A later human turn resumes it.
+
+The core is vendor-neutral. `amir-loop-lumvaleos` supplies Lumvale's opinionated profile:
+LumvaleOS is required for governed knowledge, flows, backlog selection, and evidence, while
+ordinary shell, repository, build, test, review, and git operations remain native tools.
+
+```json
+{
+  "version": 1,
+  "dependencies": [{
+    "id": "example-mcp",
+    "kind": "mcp",
+    "policy": "preferred",
+    "preflight": "Call its status capability once.",
+    "repair": "Enable the MCP and restart the host."
+  }]
+}
+```
+
 Each primary goal includes one bounded related-work reconciliation. The loop searches the
 relevant issues, boards, and open pull requests for matching identifiers, symptoms, component,
 root cause, and outcome. It may consolidate confirmed duplicates and co-resolvable work covered
@@ -176,7 +213,8 @@ Tests are written with [bats](https://github.com/bats-core/bats-core):
 bats tests/
 ```
 
-73 tests across 7 suites (`antigravity`, `bounds`, `doctor`, `failopen`, `invariants`, `parity`, `status`).
+82 tests across 8 suites (`antigravity`, `bounds`, `dependencies`, `doctor`, `failopen`,
+`invariants`, `parity`, `status`).
 CI runs this suite on a 3-OS matrix (Ubuntu, macOS, Windows) on every push and pull
 request.
 
