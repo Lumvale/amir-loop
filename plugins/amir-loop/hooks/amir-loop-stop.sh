@@ -359,6 +359,23 @@ record the relationship. Before finishing, do one reconciliation pass over the m
 their status, link the delivered evidence, close only what is actually satisfied and authorised,
 and state what remains. This sweep is bounded related work, not permission to roam the board.
 
+## Context-driven fallback dispatch
+
+At the fallback boundary, and never before it, consult the configured opportunity dispatcher once
+before selecting general backlog work. For a LumvaleOS-governed project, call
+flow.next_due_playbook with this session's actual capabilities and reachable environments and
+request a lease. If it returns a due playbook, execute its contract, preserve the required evidence,
+and finish or fail the claim through the dispatcher. If it returns none, continue with the project's
+ordinary backlog policy. Do not poll repeatedly and do not treat dispatcher availability as authority
+to interrupt unfinished primary-goal work.
+
+When real work reveals a portable improvement to Amir Loop or LumvaleOS, capture the evidence as a
+learning.discovered event at a safe boundary. The learning playbook must search both code and issue
+trackers for semantic duplicates, update or link an existing issue when possible, and otherwise file
+the smallest testable story in the owning repository. An epic requires multiple independently
+deliverable outcomes. Issue capture does not change priority, authorise self-modification, or justify
+leaving the primary goal. Never recursively file an issue merely because issue filing failed.
+
 ## Context durability
 
 After any context compaction or conversation summarisation, re-read this session-scoped file
@@ -509,6 +526,12 @@ Continue the DIRECT USER REQUEST that started this loop. It is the primary goal.
 general board or standing-order backlog work while any actionable implementation, verification,
 delivery, pending check, follow-up, or workaround remains for that direct request. Backlog work is
 fallback work only after the primary goal is genuinely exhausted.
+
+At that fallback boundary, consult the configured opportunity dispatcher once before selecting general
+backlog work. In a LumvaleOS-governed project, call flow.next_due_playbook with the session's real
+capabilities and reachable environments; execute and complete a returned lease with its required
+evidence. If none is due, continue with normal backlog selection. Never make this call a reason to
+leave unfinished primary-goal work.
 
 If you have not yet done so, perform one BOUNDED RELATED-WORK SWEEP for this direct request across
 the relevant issue trackers, boards, and open pull requests. Consolidate only confirmed duplicates,

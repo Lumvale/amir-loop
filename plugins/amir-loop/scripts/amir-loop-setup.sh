@@ -183,6 +183,20 @@ Never infer duplication from title similarity alone. Before finishing, reconcile
 link delivered evidence, and close only work that is actually satisfied and authorised. This
 is bounded related work, not permission to roam the board.
 
+## Context-driven fallback dispatch
+
+At the fallback boundary, and never before it, consult the configured opportunity dispatcher once
+before selecting general backlog work. For a LumvaleOS-governed project, call
+flow.next_due_playbook with this session's actual capabilities and reachable environments and
+request a lease. If a playbook is due, execute it and record its required evidence through the
+dispatcher. If none is due, use the ordinary backlog policy. Do not poll and do not let dispatcher
+work displace an unfinished primary goal.
+
+Portable improvements discovered during real execution may be emitted as learning.discovered at
+a safe boundary. The learning playbook searches Amir Loop and LumvaleOS source and trackers first,
+links or updates semantic duplicates, and files only the smallest evidence-backed story in the
+owning repository. Filing does not confer priority or permit recursive self-modification.
+
 ## Context durability
 
 After any context compaction or conversation summarisation, re-read this session-scoped file
