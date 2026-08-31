@@ -5,7 +5,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # macos-latest is arm64 and only ever exercises jq-macos-arm64. macos-13 is
+        # the last Intel (x86_64) GitHub-hosted runner, so it's kept here specifically
+        # to exercise jq-macos-amd64 - the "Assert vendored jq executes on this
+        # platform" step's Darwin/* branch selects it via uname -m, which reports
+        # x86_64 there (not arm64), so the case statement's fallback arm is what runs.
+        os: [ubuntu-latest, macos-latest, macos-13, windows-latest]
     runs-on: ${{ matrix.os }}
     defaults:
       run:

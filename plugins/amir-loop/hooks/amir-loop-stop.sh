@@ -81,6 +81,17 @@ else
   allow_stop
 fi
 
+# Test-only escape hatch: report which jq this invocation resolved to, then exit.
+# Never set in normal operation - it exists so tests/parity.bats can assert the hook
+# and amir-loop-doctor.sh agree on jq resolution without reimplementing the platform
+# mapping a third time. Placed after resolution (so it reports the real answer) but
+# before every other side effect, so it cannot perturb the fail-open invariant or the
+# hook's normal exit-0/no-output-or-one-JSON-object contract.
+if [ "${AMIR_LOOP_JQ_DEBUG:-0}" = "1" ]; then
+  printf '%s\n' "$JQ"
+  exit 0
+fi
+
 [ "${AMIR_LOOP_OFF:-0}" = "1" ] && allow_stop
 
 CWD=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.cwd // empty' 2>/dev/null)
