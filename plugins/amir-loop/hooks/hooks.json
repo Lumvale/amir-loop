@@ -1,6 +1,44 @@
 {
   "description": "Amir Loop - auto-arming Stop hook that keeps a session going until the work is done",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -lc 'printenv CLAUDE_PLUGIN_ROOT PLUGIN_ROOT CODEX_PLUGIN_ROOT | head -n 1 | xargs -r -I{} bash {}/hooks/amir-loop-stop.sh --observe=session.started'",
+            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$env:PLUGIN_ROOT\\hooks\\amir-loop-stop.ps1\" -HookArgument \"--observe=session.started\"",
+            "timeout": 10,
+            "statusMessage": "Reconciling Amir Loop startup"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -lc 'printenv CLAUDE_PLUGIN_ROOT PLUGIN_ROOT CODEX_PLUGIN_ROOT | head -n 1 | xargs -r -I{} bash {}/hooks/amir-loop-stop.sh --observe=user-prompt'",
+            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$env:PLUGIN_ROOT\\hooks\\amir-loop-stop.ps1\" -HookArgument \"--observe=user-prompt\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|apply_patch|Edit|Write|mcp__lumvaleos__lumvaleos_preflight|mcp__lumvaleos__knowledge_capture",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -lc 'printenv CLAUDE_PLUGIN_ROOT PLUGIN_ROOT CODEX_PLUGIN_ROOT | head -n 1 | xargs -r -I{} bash {}/hooks/amir-loop-stop.sh --observe=post-tool'",
+            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$env:PLUGIN_ROOT\\hooks\\amir-loop-stop.ps1\" -HookArgument \"--observe=post-tool\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

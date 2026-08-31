@@ -1,0 +1,15 @@
+name: Emit governed LumvaleOS playbook event
+description: Emit one redacted, idempotent fact; never execute a prompt or fail the originating workflow.
+inputs:
+  event_type:
+    required: true
+  ingress_url:
+    required: false
+  ingress_token:
+    required: false
+  workspace_id:
+    description: Stable fleet workspace scope; defaults to the repository hash.
+    required: false
+runs:
+  using: node24
+  main: emit.mjs

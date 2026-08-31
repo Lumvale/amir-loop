@@ -1,6 +1,6 @@
 {
   "name": "amir-loop",
-  "version": "1.0.0+codex.20260830170000",
+  "version": "1.0.0+codex.20260831110300",
   "description": "Keeps Claude Code, VS Code Copilot Chat, Codex, and Google Antigravity sessions moving until the work is genuinely exhausted, with turn and calendar bounds.",
   "author": {
     "name": "Lumvale",
