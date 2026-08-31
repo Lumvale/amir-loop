@@ -343,6 +343,60 @@ EOF
   done
 }
 
+@test "Bedrock transient errors use the bounded retry path" {
+  for signal in ThrottlingException ServiceUnavailableException ModelStreamErrorException ModelTimeoutException "AWS default-chain credential resolve timed out"; do
+    rm -f "$BATS_TEST_TMPDIR/.claude/.amir-loop-retry-s1"
+    arm_state 1 10
+    CODEX_LAST_ASSISTANT="$signal" run run_codex_hook
+    [ "$status" -eq 0 ]
+    [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+    grep -q '^iteration: 1$' "$TEST_STATE"
+  done
+}
+
+@test "Bedrock authorization and validation errors fail open" {
+  for signal in AccessDeniedException ValidationException ResourceNotFoundException; do
+    rm -f "$BATS_TEST_TMPDIR/.claude/.amir-loop-retry-s1"
+    arm_state 1 10
+    CODEX_LAST_ASSISTANT="$signal" run run_codex_hook
+    [ "$status" -eq 0 ]
+    [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+    ! echo "$output" | jq -r '.reason' | grep -q 'transient provider or network error'
+    grep -q '^iteration: 2$' "$TEST_STATE"
+  done
+}
+
+@test "Bedrock runtime profile is included without secrets" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  cat > "$BATS_TEST_TMPDIR/.claude/amir-loop-runtime.json" <<'EOF'
+{"version":1,"provider":"bedrock","required":true,"region":"ap-southeast-2","model":"arn:aws:bedrock:ap-southeast-2:111122223333:application-inference-profile/example","credential_source":"workload-identity","preflight":"verify status","repair":"restart"}
+EOF
+  AMIR_LOOP_PROVIDER=bedrock CODEX_LAST_ASSISTANT="work remains" run run_codex_hook
+  [ "$status" -eq 0 ]
+  grep -q 'provider: bedrock' "$TEST_STATE"
+  grep -q 'region: ap-southeast-2' "$TEST_STATE"
+  grep -q 'credential source: workload-identity' "$TEST_STATE"
+  grep -q 'observed provider activation: bedrock' "$TEST_STATE"
+  ! grep -Eqi 'secret|access.key' "$TEST_STATE"
+}
+
+@test "invalid Bedrock runtime profile fails closed in the brief" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  printf '%s\n' '{"version":1,"provider":"bedrock","required":true}' > "$BATS_TEST_TMPDIR/.claude/amir-loop-runtime.json"
+  CODEX_LAST_ASSISTANT="work remains" run run_codex_hook
+  [ "$status" -eq 0 ]
+  grep -q '<amir-loop-blocked>runtime-provider</amir-loop-blocked>' "$TEST_STATE"
+}
+
+@test "required Bedrock profile blocks a host-managed activation" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  cp "$BATS_TEST_DIRNAME/../templates/runtime/bedrock.json" "$BATS_TEST_TMPDIR/.claude/amir-loop-runtime.json"
+  CODEX_LAST_ASSISTANT="work remains" run run_codex_hook
+  [ "$status" -eq 0 ]
+  grep -q 'observed provider activation: host' "$TEST_STATE"
+  grep -q '<amir-loop-blocked>runtime-provider</amir-loop-blocked>' "$TEST_STATE"
+}
+
 @test "continuation prompt restores the direct goal after compaction" {
   arm_state 2 10
   CODEX_LAST_ASSISTANT="work remains" run run_codex_hook

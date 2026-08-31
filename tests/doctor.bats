@@ -50,6 +50,26 @@ setup() {
   echo "$output" | grep -q 'dependencies: no policy found (portable default: off)'
 }
 
+@test "doctor validates a Bedrock runtime profile without exposing credentials" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  cp "$BATS_TEST_DIRNAME/../templates/runtime/bedrock.json" "$BATS_TEST_TMPDIR/.claude/amir-loop-runtime.json"
+  cd "$BATS_TEST_TMPDIR"
+  run env CLAUDE_CODE_USE_BEDROCK=1 bash "$DOCTOR"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q 'runtime provider: valid bedrock profile'
+  echo "$output" | grep -q 'Bedrock activation signal present'
+  ! echo "$output" | grep -Eqi 'AWS_SECRET_ACCESS_KEY|AWS_BEARER_TOKEN_BEDROCK='
+}
+
+@test "doctor rejects an incomplete Bedrock runtime profile" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  printf '%s\n' '{"version":1,"provider":"bedrock"}' > "$BATS_TEST_TMPDIR/.claude/amir-loop-runtime.json"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$DOCTOR"
+  [ "$status" -eq 1 ]
+  echo "$output" | grep -q 'FAIL:.*runtime provider: invalid profile'
+}
+
 @test "doctor FAILs when a conflicting ralph-loop stop hook is enabled" {
   run env AMIR_LOOP_FAKE_ENABLED_PLUGINS="ralph-loop@claude-plugins-official" bash "$DOCTOR"
   [ "$status" -eq 1 ]

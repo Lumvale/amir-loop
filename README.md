@@ -105,6 +105,7 @@ Environment variables read by `hooks/amir-loop-stop.sh`:
 | `AMIR_LOOP_UNTIL` | unset | Absolute date override for the deadline. Takes priority over `AMIR_LOOP_DAYS` when set. An unparseable value is treated as already expired. |
 | `AMIR_LOOP_OFF` | `0` | Set to `1` as a global kill switch — the hook always allows the stop. |
 | `AMIR_LOOP_AUTOARM` | `1` | Set to `0` to only continue a loop someone already started, never auto-arm a new one on a bare Stop. This is the posture used by the `~/.claude/settings.json` + `--claude-code` install shape, below. |
+| `AMIR_LOOP_PROVIDER` | unset | Optional provider activation signal for hosts that do not expose one in hook payloads. Set to `bedrock` only when the host itself is already configured to perform inference through Amazon Bedrock. |
 
 ### Principles file
 
@@ -154,6 +155,27 @@ ordinary shell, repository, build, test, review, and git operations remain nativ
   }]
 }
 ```
+
+### Amazon Bedrock
+
+Amir Loop does not proxy or invoke a model itself; it preserves the host's continuation lifecycle.
+Bedrock support is therefore native provider governance rather than a second inference client. Copy
+`templates/runtime/bedrock.json` to `.claude/amir-loop-runtime.json`, choose the deployment's region
+and pinned model or application inference-profile ARN, and keep credentials out of that file. The
+profile is resolved from the working directory upwards, included in manually and automatically armed
+briefs, checked by `/amir-loop-doctor`, and treated as a required preflight when `required` is true.
+
+For Claude Code, follow the [official Bedrock deployment guide](https://code.claude.com/docs/en/amazon-bedrock)
+and configure the host with `CLAUDE_CODE_USE_BEDROCK=1`; it uses the AWS SDK default
+credential chain (or a Bedrock bearer token) and resolves `AWS_REGION`, `AWS_DEFAULT_REGION`, then the
+active AWS profile. Pin `ANTHROPIC_MODEL` or the default model variables rather than relying on an
+alias that may change. Other hosts can set `AMIR_LOOP_PROVIDER=bedrock` after their own Bedrock
+adapter is active. Amir Loop never reads, logs, copies, or validates secret values and never makes a
+network call merely to process a Stop event.
+
+Bedrock throttling, service-unavailable, stream, model-timeout, and credential-chain timeout signals
+use the same bounded retry budget as other transient provider failures. Access-denied and validation
+errors are intentionally not retried: those require configuration repair, not a retry storm.
 
 Each primary goal includes one bounded related-work reconciliation. The loop searches the
 relevant issues, boards, and open pull requests for matching identifiers, symptoms, component,
@@ -230,7 +252,7 @@ Tests are written with [bats](https://github.com/bats-core/bats-core):
 bats tests/
 ```
 
-94 tests across 9 suites (`antigravity`, `bounds`, `dependencies`, `doctor`, `failopen`,
+102 tests across 9 suites (`antigravity`, `bounds`, `dependencies`, `doctor`, `failopen`,
 `invariants`, `parity`, `setup-args`, `status`).
 CI runs this suite on a four-runner matrix (Ubuntu, Apple Silicon macOS, Intel macOS and Windows) on every push and pull
 request.

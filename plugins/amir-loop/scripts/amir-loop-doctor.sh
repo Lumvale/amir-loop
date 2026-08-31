@@ -113,6 +113,48 @@ else
   fail "dependencies: invalid policy $POLICY - expected version 1 and policies required, preferred, or off"
 fi
 
+# --- inference runtime profile, CWD upwards ---
+_dir="$PWD"; RUNTIME_PROFILE=""
+while [ -n "$_dir" ]; do
+  [ -f "$_dir/.claude/amir-loop-runtime.json" ] && { RUNTIME_PROFILE="$_dir/.claude/amir-loop-runtime.json"; break; }
+  _p=$(dirname "$_dir"); [ "$_p" = "$_dir" ] && break; _dir="$_p"
+done
+if [ -z "$RUNTIME_PROFILE" ]; then
+  ok "runtime provider: no profile found (portable default: host-managed)"
+elif "$JQ" -e '
+  .version == 1 and (.provider | type == "string" and length > 0) and
+  ((.required // true) | type == "boolean") and
+  ((.region // "") | type == "string") and
+  ((.model // "") | type == "string") and
+  ((.credential_source // "host") | type == "string") and
+  ((.preflight // "") | type == "string") and
+  ((.repair // "") | type == "string") and
+  (.provider != "bedrock" or
+    ((.region | type == "string" and length > 0) and
+     (.model | type == "string" and length > 0) and
+     (.credential_source | type == "string" and length > 0)))
+' "$RUNTIME_PROFILE" >/dev/null 2>&1; then
+  _provider=$("$JQ" -r '.provider' "$RUNTIME_PROFILE")
+  _region=$("$JQ" -r '.region // "host-resolved"' "$RUNTIME_PROFILE")
+  _model=$("$JQ" -r '.model // "host-resolved"' "$RUNTIME_PROFILE")
+  ok "runtime provider: valid $_provider profile $RUNTIME_PROFILE"
+  ok "runtime target: region=$_region model=$_model (credentials redacted)"
+  if [ "$_provider" = "bedrock" ]; then
+    if [ "${CLAUDE_CODE_USE_BEDROCK:-0}" = "1" ] || [ "${AMIR_LOOP_PROVIDER:-}" = "bedrock" ]; then
+      ok "Bedrock activation signal present"
+    else
+      _required=$("$JQ" -r '.required // true' "$RUNTIME_PROFILE")
+      if [ "$_required" = "true" ]; then
+        fail "Bedrock profile is required but this process has no activation signal; expose CLAUDE_CODE_USE_BEDROCK=1 or AMIR_LOOP_PROVIDER=bedrock in the host session"
+      else
+        warn "Bedrock profile is configured but this doctor process has no activation signal"
+      fi
+    fi
+  fi
+else
+  fail "runtime provider: invalid profile $RUNTIME_PROFILE - version 1 requires provider and Bedrock requires region, model, and credential_source; never store credentials here"
+fi
+
 # --- current loop state ---
 shopt -s nullglob
 _session_states=("$PWD"/.claude/amir-loop.*.local.md)
