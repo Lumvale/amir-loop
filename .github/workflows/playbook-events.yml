@@ -8,27 +8,24 @@ on:
 permissions:
   contents: read
 jobs:
-  pr-opened:
-    if: github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'reopened')
-    uses: Lumvale/lumvale-infra/.github/workflows/emit-playbook-event.yml@main
-    with:
-      event_type: pr.opened
-    secrets: inherit
-  pr-merged:
-    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
-    uses: Lumvale/lumvale-infra/.github/workflows/emit-playbook-event.yml@main
-    with:
-      event_type: pr.merged
-    secrets: inherit
-  deployed:
-    if: github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success'
-    uses: Lumvale/lumvale-infra/.github/workflows/emit-playbook-event.yml@main
-    with:
-      event_type: deployment.completed
-    secrets: inherit
-  incident:
-    if: github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'incident')
-    uses: Lumvale/lumvale-infra/.github/workflows/emit-playbook-event.yml@main
-    with:
-      event_type: incident.opened
-    secrets: inherit
+  emit:
+    if: >-
+      (github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'reopened' || github.event.pull_request.merged == true)) ||
+      (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success') ||
+      (github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'incident'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: classify
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == pull_request && "${{ github.event.action }}" != closed ]]; then echo 'type=pr.opened' >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == pull_request ]]; then echo 'type=pr.merged' >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == deployment_status ]]; then echo 'type=deployment.completed' >> "$GITHUB_OUTPUT"
+          else echo 'type=incident.opened' >> "$GITHUB_OUTPUT"; fi
+      - uses: ./.github/actions/emit-lumvaleos-event
+        with:
+          event-type: ${{ steps.classify.outputs.type }}
+          ingress-url: ${{ secrets.LUMVALEOS_EVENT_INGRESS_URL }}
+          ingress-token: ${{ secrets.LUMVALEOS_EVENT_INGRESS_TOKEN }}
+          workspace-id: ${{ secrets.LUMVALEOS_WORKSPACE_ID }}
