@@ -22,34 +22,21 @@ load helper
   done
 }
 
-@test "pins multi-line fidelity of the final message via the completion promise, both shapes" {
-  local promise="AMIR LOOP COMPLETE"
-
-  arm_state 1 10
-  cat > "$BATS_TEST_TMPDIR/transcript.jsonl" <<EOF
-{"message":{"role":"user","content":[{"type":"text","text":"start the work"}]}}
-{"message":{"role":"assistant","content":[{"type":"text","text":"<promise>$promise</promise>\nand some trailing prose"}]}}
-EOF
-  TRANSCRIPT="$BATS_TEST_TMPDIR/transcript.jsonl"
-  run run_hook
-  [ "$status" -eq 0 ]
-  [ -z "$output" ]
-  [ ! -f "$TEST_STATE" ]
-  rm -f "$BATS_TEST_TMPDIR/transcript.jsonl"
-  rm -rf "$BATS_TEST_TMPDIR/.claude"
-
-  arm_state 1 10
-  cat > "$BATS_TEST_TMPDIR/transcript.jsonl" <<EOF
-{"type":"user.message","data":{"content":"start the work"},"id":1,"timestamp":1}
-{"type":"assistant.message","data":{"content":"<promise>$promise</promise>\nand some trailing prose"},"id":2,"timestamp":2}
-EOF
-  TRANSCRIPT="$BATS_TEST_TMPDIR/transcript.jsonl"
-  run run_hook
-  [ "$status" -eq 0 ]
-  [ -z "$output" ]
-  [ ! -f "$TEST_STATE" ]
-  rm -f "$BATS_TEST_TMPDIR/transcript.jsonl"
-  rm -rf "$BATS_TEST_TMPDIR/.claude"
+@test "bare completion token is rejected across legacy host transcript shapes" {
+  for shape in claude antigravity vscode; do
+    arm_state 1 10
+    if [ "$shape" = "vscode" ]; then
+      printf '%s\n' '{"type":"assistant.message","data":{"content":"<promise>AMIR LOOP COMPLETE</promise>"}}' > "$BATS_TEST_TMPDIR/t.jsonl"
+    else
+      printf '%s\n' '{"message":{"role":"assistant","content":[{"type":"text","text":"<promise>AMIR LOOP COMPLETE</promise>"}]}}' > "$BATS_TEST_TMPDIR/t.jsonl"
+    fi
+    TRANSCRIPT="$BATS_TEST_TMPDIR/t.jsonl"
+    run run_hook
+    [ "$status" -eq 0 ]
+    [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+    [ -f "$TEST_STATE" ]
+    rm -rf "$BATS_TEST_TMPDIR/.claude"
+  done
 }
 
 @test "principles are inherited from a grandparent .claude directory" {
@@ -194,15 +181,16 @@ EOF
   [ ! -f "$BATS_TEST_TMPDIR/.claude/.amir-loop-done-s1" ]
 }
 
-@test "promise in the LAST message finishes the loop" {
+@test "promise in the LAST message cannot finish without closeout evidence" {
   arm_state 1 10
   printf '%s\n' \
     '{"type":"assistant.message","data":{"content":"<promise>AMIR LOOP COMPLETE</promise>"},"id":1,"timestamp":1}' \
     > "$BATS_TEST_TMPDIR/t.jsonl"
   TRANSCRIPT="$BATS_TEST_TMPDIR/t.jsonl"
   run run_hook
-  [ "$status" -eq 0 ]; [ -z "$output" ]
-  [ ! -f "$TEST_STATE" ]
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+  [ -f "$TEST_STATE" ]
 }
 
 @test "promise in an EARLIER message does not finish the loop" {
@@ -247,12 +235,63 @@ EOF
   [ "$(echo "$output" | jq -r '.hookSpecificOutput // empty')" = "" ]
 }
 
-@test "Codex completion promise finishes without parsing a transcript" {
+@test "Codex bare completion promise reproducer is rejected without parsing a transcript" {
   arm_state 1 10
   CODEX_LAST_ASSISTANT="verified <promise>AMIR LOOP COMPLETE</promise>" run run_codex_hook
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+  [ -f "$TEST_STATE" ]
+  echo "$output" | jq -r '.reason' | grep -q 'promise token is not evidence'
+}
+
+@test "validated closeout requires a second nonce-bound confirmation" {
+  arm_state 1 10
+  closeout='<amir-loop-closeout>{"version":1,"direct_goal_exhausted":true,"continuation_escape":false,"actionable_items":[],"pending":{"pr":false,"test":false,"migration":false,"deployment":false,"cutover":false,"follow_up":false,"verification":false},"dependencies":[{"id":"lumvaleos","required":true,"status":"healthy","checked_at":"2026-08-31T00:00:00Z","evidence_id":"preflight:ok"}],"playbook":{"status":"none","dispatcher_terminal":true}}</amir-loop-closeout>'
+  CODEX_LAST_ASSISTANT="$closeout" run run_codex_hook
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+  nonce=$(jq -r '.nonce' "$BATS_TEST_TMPDIR/.claude/.amir-loop-closeout-s1.json")
+  [ -n "$nonce" ]
+
+  CODEX_LAST_ASSISTANT="<amir-loop-confirm>$nonce</amir-loop-confirm><promise>AMIR LOOP COMPLETE</promise>" run run_codex_hook
   [ "$status" -eq 0 ]; [ -z "$output" ]
   [ ! -f "$TEST_STATE" ]
   [ "$(cat "$BATS_TEST_TMPDIR/.claude/.amir-loop-done-s1")" = "turn:turn-1" ]
+}
+
+@test "closeout and promise in one escape response cannot skip phase two" {
+  arm_state 1 10
+  closeout='<amir-loop-closeout>{"version":1,"direct_goal_exhausted":true,"continuation_escape":false,"actionable_items":[],"pending":{"pr":false,"test":false,"migration":false,"deployment":false,"cutover":false,"follow_up":false,"verification":false},"dependencies":[],"playbook":{"status":"none","dispatcher_terminal":true}}</amir-loop-closeout>'
+  CODEX_LAST_ASSISTANT="$closeout<promise>AMIR LOOP COMPLETE</promise>" run run_codex_hook
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+  [ -f "$TEST_STATE" ]
+  [ ! -f "$BATS_TEST_TMPDIR/.claude/.amir-loop-closeout-s1.json" ]
+}
+
+@test "explicit exact-output user contract bypasses closeout ceremony" {
+  arm_state 1 10
+  jq -n --arg cwd "$BATS_TEST_TMPDIR" --arg prompt "Reply with exactly PASS ONE. Do not use tools." \
+    '{cwd:$cwd, session_id:"s1", turn_id:"turn-1", prompt:$prompt}' |
+    bash "$HOOK" --observe=user-prompt
+  CODEX_LAST_ASSISTANT="PASS ONE" run run_codex_hook
+  [ "$status" -eq 0 ]; [ -z "$output" ]
+  [ ! -f "$TEST_STATE" ]
+}
+
+@test "successful LumvaleOS preflight emits environment reachable without prompt content" {
+  jq -n --arg cwd "$BATS_TEST_TMPDIR" \
+    '{cwd:$cwd,session_id:"s1",turn_id:"turn-1",tool_name:"mcp__lumvaleos__lumvaleos_preflight",tool_response:{overall_status:"ok",secret:"not-copied"}}' |
+    bash "$HOOK" --observe=post-tool
+  event=$(tail -n 1 "$BATS_TEST_TMPDIR/.lumvaleos/playbook-events.jsonl")
+  [ "$(echo "$event" | jq -r '.type')" = "environment.reachable" ]
+  [ "$(echo "$event" | jq -r '.data.secret // empty')" = "" ]
+}
+
+@test "successful knowledge capture emits learning discovered" {
+  jq -n --arg cwd "$BATS_TEST_TMPDIR" \
+    '{cwd:$cwd,session_id:"s1",turn_id:"turn-1",tool_name:"mcp__lumvaleos__knowledge_capture",tool_response:{isError:false}}' |
+    bash "$HOOK" --observe=post-tool
+  [ "$(tail -n 1 "$BATS_TEST_TMPDIR/.lumvaleos/playbook-events.jsonl" | jq -r '.type')" = "learning.discovered" ]
 }
 
 @test "Codex completion marker suppresses re-arm in the completed turn" {

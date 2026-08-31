@@ -55,8 +55,10 @@ allow_stop() { exit 0; }
 # runs hook commands through PowerShell, which reports it as
 #   The term 'AMIR_LOOP_AUTOARM=0' is not recognized as the name of a cmdlet
 CLAUDE_CODE_ONLY=0
+OBSERVE_EVENT=""
 for arg in "$@"; do
   [ "$arg" = "--claude-code" ] && CLAUDE_CODE_ONLY=1
+  case "$arg" in --observe=*) OBSERVE_EVENT="${arg#--observe=}" ;; esac
 done
 
 HOOK_INPUT=$(cat)
@@ -116,6 +118,82 @@ PENDING_STATE="$CWD/.claude/amir-loop.pending.local.md"
 CAMPAIGN="$CWD/.claude/.amir-loop-campaign"
 MARKER="$CWD/.claude/.amir-loop-done-$SESSION"
 RETRY_FILE="$CWD/.claude/.amir-loop-retry-$SESSION"
+CLOSEOUT_FILE="$CWD/.claude/.amir-loop-closeout-$SESSION_KEY.json"
+EXACT_OUTPUT_FILE="$CWD/.claude/.amir-loop-exact-output-$SESSION_KEY"
+
+# Non-Stop lifecycle events use the same portable launcher. They are deliberately
+# best-effort: an emission failure can lose a hint, but may never corrupt or complete a
+# direct goal. LumvaleOS deduplicates these workspace-scoped facts when it reconciles the
+# outbox. Payloads contain identifiers and classifications only, never prompt/tool bodies.
+if [ -n "$OBSERVE_EVENT" ]; then
+  mkdir -p "$CWD/.claude" "$CWD/.lumvaleos" 2>/dev/null || exit 0
+  if [ "$OBSERVE_EVENT" = "user-prompt" ]; then
+    prompt=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.prompt // empty' 2>/dev/null)
+    if printf '%s' "$prompt" | grep -Eiq '(^|[[:space:]])(reply|respond|output|return)[[:space:]]+with[[:space:]]+exactly([[:space:]:]|$)'; then
+      printf '%s\n' "${TURN_ID:-legacy}" > "$EXACT_OUTPUT_FILE" 2>/dev/null || true
+    else
+      rm -f "$EXACT_OUTPUT_FILE" 2>/dev/null || true
+    fi
+    exit 0
+  fi
+
+  event_type="$OBSERVE_EVENT"
+  tool_name=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.tool_name // empty' 2>/dev/null)
+  if [ "$OBSERVE_EVENT" = "post-tool" ]; then
+    case "$tool_name" in
+      apply_patch|Edit|Write) event_type="source.changed" ;;
+      mcp__lumvaleos__lumvaleos_preflight)
+        preflight_ok=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '
+          [.. | objects | (.overall_status? // .status? // empty)] |
+          map(select(. == "ok" or . == "healthy")) | length' 2>/dev/null)
+        [ "${preflight_ok:-0}" -gt 0 ] || exit 0
+        event_type="environment.reachable"
+        ;;
+      mcp__lumvaleos__knowledge_capture)
+        capture_error=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '[.. | objects | .isError? // empty] | any' 2>/dev/null)
+        [ "$capture_error" = "true" ] && exit 0
+        event_type="learning.discovered"
+        ;;
+      Bash)
+        command_text=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.tool_input.command // empty' 2>/dev/null)
+        exit_code=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '[.. | objects | .exit_code? // empty] | first // 0' 2>/dev/null)
+        case "$exit_code" in ''|*[!0-9-]*) exit_code=0 ;; esac
+        if [ "$exit_code" -ne 0 ] && printf '%s' "$command_text" | grep -Eiq '(^|[[:space:]])(pytest|bats|npm test|pnpm test|yarn test|terraform validate|cargo test|go test|dotnet test)([[:space:]]|$)'; then
+          event_type="test.failed"
+        else
+          exit 0
+        fi
+        ;;
+      *) exit 0 ;;
+    esac
+  fi
+  occurred_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  workspace_id=$(printf '%s' "$CWD" | sha256sum 2>/dev/null | cut -c1-32)
+  [ -n "$workspace_id" ] || workspace_id="$CWD"
+  event_id=$(printf '%s|%s|%s|%s' "$workspace_id" "$event_type" "${TURN_ID:-$SESSION_KEY}" "$tool_name" |
+    sha256sum 2>/dev/null | cut -c1-40)
+  [ -n "$event_id" ] || event_id="${SESSION_KEY}-${event_type}-${TURN_ID:-legacy}"
+  "$JQ" -nc --arg id "$event_id" --arg type "$event_type" --arg at "$occurred_at" \
+    --arg workspace "$workspace_id" --arg session "$SESSION_KEY" --arg host "${AMIR_LOOP_HOST:-unknown}" \
+    '{specversion:"1.0", id:$id, type:$type, source:"amir-loop.host-hook", time:$at,
+      workspace_id:$workspace, subject:$session, data:{host:$host}}' \
+    >> "$CWD/.lumvaleos/playbook-events.jsonl" 2>/dev/null || true
+  if [ "$event_type" = "session.started" ]; then
+    heartbeat_file="$CWD/.lumvaleos/.playbook-heartbeat"
+    now_epoch=$(date -u +%s)
+    last_epoch=$(cat "$heartbeat_file" 2>/dev/null || true)
+    case "$last_epoch" in ''|*[!0-9]*) last_epoch=0 ;; esac
+    if [ $((now_epoch - last_epoch)) -ge "${AMIR_LOOP_HEARTBEAT_SECONDS:-21600}" ]; then
+      printf '%s\n' "$now_epoch" > "$heartbeat_file" 2>/dev/null || true
+      hb_id=$(printf '%s|heartbeat|%s' "$workspace_id" "$((now_epoch / 21600))" | sha256sum | cut -c1-40)
+      "$JQ" -nc --arg id "$hb_id" --arg at "$occurred_at" --arg workspace "$workspace_id" \
+        '{specversion:"1.0", id:$id, type:"heartbeat.reconcile", source:"amir-loop.host-hook",
+          time:$at, workspace_id:$workspace, subject:"startup-sparse-heartbeat", data:{}}' \
+        >> "$CWD/.lumvaleos/playbook-events.jsonl" 2>/dev/null || true
+    fi
+  fi
+  exit 0
+fi
 
 # A manually started loop cannot know the host session id. The setup command writes one
 # pending state file; the next Stop in that chat atomically claims it. Auto-armed loops
@@ -408,6 +486,7 @@ case "$LIMIT" in ''|*[!0-9]*) rm -f "$STATE"; allow_stop ;; esac
 # Stamp the marker with the human turn count at the moment the loop ended, so the next
 # human message re-enables arming (see the marker check above).
 finish() {
+  rm -f "$CLOSEOUT_FILE" "$EXACT_OUTPUT_FILE"
   rm -f "$STATE"
   if [ -n "$TURN_ID" ]; then
     printf 'turn:%s\n' "$TURN_ID" > "$MARKER" 2>/dev/null
@@ -489,13 +568,85 @@ fi
 rm -f "$RETRY_FILE"
 [ -n "$LAST" ] || allow_stop
 
+# UserPromptSubmit records a narrowly-scoped exact-output contract. Such a direct user
+# instruction must win over loop ceremony: adding closeout tags would itself violate the
+# requested output. The marker is still stamped so the same turn cannot auto-arm again.
+if [ -f "$EXACT_OUTPUT_FILE" ]; then
+  exact_turn=$(cat "$EXACT_OUTPUT_FILE" 2>/dev/null || true)
+  if { [ -n "$TURN_ID" ] && [ "$exact_turn" = "$TURN_ID" ]; } || \
+     { [ -z "$TURN_ID" ] && [ "$exact_turn" = "legacy" ]; }; then
+    finish
+  fi
+  rm -f "$EXACT_OUTPUT_FILE"
+fi
+
 case "$LAST" in
   *"<amir-loop-blocked>"*"</amir-loop-blocked>"*) suspend ;;
 esac
 
 if [ -n "$GOAL" ] && [ "$GOAL" != "null" ]; then
+  # Phase 2: only a nonce issued for a validated closeout proposal can authorize the
+  # promise. The confirmation response is intentionally small and cannot manufacture a
+  # fresh proposal while escaping a continuation prompt.
+  if [ -f "$CLOSEOUT_FILE" ]; then
+    nonce=$("$JQ" -r '.nonce // empty' "$CLOSEOUT_FILE" 2>/dev/null || true)
+    case "$LAST" in
+      *"<amir-loop-confirm>$nonce</amir-loop-confirm>"*"<promise>$GOAL</promise>"*)
+        [ -n "$nonce" ] && finish
+        ;;
+    esac
+    # Any response other than the exact confirmation invalidates the staged proposal.
+    rm -f "$CLOSEOUT_FILE"
+  fi
+
+  # Phase 1: extract one compact JSON object and validate every deterministic closeout
+  # field. A proposal containing the promise is rejected: one response cannot perform
+  # both phases. Required dependencies and dispatcher claims must already be terminal.
+  closeout=$(printf '%s' "$LAST" | sed -n 's|.*<amir-loop-closeout>\(.*\)</amir-loop-closeout>.*|\1|p' | tail -n 1)
+  if [ -n "$closeout" ] && ! printf '%s' "$LAST" | grep -Fq "<promise>$GOAL</promise>"; then
+    if printf '%s' "$closeout" | "$JQ" -e '
+      .version == 1 and .direct_goal_exhausted == true and
+      .continuation_escape == false and
+      (.actionable_items | type == "array" and length == 0) and
+      (.pending | type == "object") and
+      ([.pending.pr, .pending.test, .pending.migration, .pending.deployment,
+        .pending.cutover, .pending.follow_up, .pending.verification] |
+        all(. == false or . == null or . == [])) and
+      (.dependencies | type == "array" and all(.[];
+        .required != true or
+        (.status == "healthy" and (.evidence_id | type == "string" and length > 0) and
+         (.checked_at | type == "string" and length > 0)))) and
+      (.playbook | type == "object") and
+      (.playbook.status == "none" or
+       ((.playbook.status == "completed" or .playbook.status == "failed") and
+        .playbook.dispatcher_terminal == true and
+        (.playbook.receipt_id | type == "string" and length > 0)))
+    ' >/dev/null 2>&1; then
+      nonce=$(printf '%s:%s:%s:%s' "$SESSION_KEY" "$TURN_ID" "$ITER" "$(date -u +%s%N 2>/dev/null || date -u +%s)" |
+        sha256sum 2>/dev/null | cut -c1-24)
+      [ -n "$nonce" ] || nonce="${SESSION_KEY}-${ITER}-$(date -u +%s)"
+      printf '%s' "$closeout" | "$JQ" --arg nonce "$nonce" --arg staged_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        '. + {nonce: $nonce, staged_at: $staged_at}' > "$CLOSEOUT_FILE" 2>/dev/null || allow_stop
+      CLOSEOUT_PROMPT="The closeout proposal passed deterministic phase-one validation. Before confirming, re-check the preceding answer and current repository/dispatcher state: no actionable item, PR, test, migration, deployment, cutover, follow-up, verification, required dependency, or leased playbook may remain. If that remains true, reply with exactly these two tokens and no status report:
+<amir-loop-confirm>$nonce</amir-loop-confirm>
+<promise>$GOAL</promise>
+If anything remains, do not confirm; continue the next concrete action and later submit a fresh <amir-loop-closeout> proposal."
+      "$JQ" -n --arg prompt "$CLOSEOUT_PROMPT" \
+        --arg msg "Amir Loop closeout phase 2 | independent confirmation required" \
+        '{decision: "block", reason: $prompt, systemMessage: $msg}'
+      exit 0
+    fi
+  fi
+
+  # A bare promise is the supplied false-completion regression. Keep the state and make
+  # the machine-readable contract explicit instead of accepting a keyword.
   case "$LAST" in
-    *"<promise>$GOAL</promise>"*) finish ;;
+    *"<promise>$GOAL</promise>"*)
+      PROMPT_TEXT="Completion was not accepted because a promise token is not evidence. Continue the direct user goal. When all work is genuinely exhausted, first submit one compact JSON object as <amir-loop-closeout>{...}</amir-loop-closeout> with version=1, direct_goal_exhausted=true, continuation_escape=false, actionable_items=[], every pending field (pr, test, migration, deployment, cutover, follow_up, verification) false, each required dependency healthy with checked_at and evidence_id, and playbook status none or dispatcher-terminal completed/failed with receipt_id. Do not include the promise in phase one."
+      "$JQ" -n --arg prompt "$PROMPT_TEXT" --arg msg "Amir Loop rejected unverified completion promise" \
+        '{decision: "block", reason: $prompt, systemMessage: $msg}'
+      exit 0
+      ;;
   esac
 fi
 

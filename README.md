@@ -4,9 +4,11 @@ Amir Loop is an auto-arming `Stop` hook that keeps an agent session going until 
 work is genuinely **exhausted** — not until one task is done. It re-arms itself on
 every stop, feeding the same prompt back so the agent picks up where it left off, and
 it is bounded on two independent axes: a per-session turn cap and a calendar window.
-The loop ends when either bound trips, or when the agent emits
-`<promise>AMIR LOOP COMPLETE</promise>` after concluding there is truly nothing left
-to advance. Its distinguishing property is that it runs in **Claude Code, VS Code
+The loop ends when either bound trips, or after a two-phase machine-readable closeout.
+A bare `<promise>AMIR LOOP COMPLETE</promise>` is never sufficient: phase one proves the
+direct goal, pending delivery, dependencies and any dispatcher lease are terminal; phase two
+confirms a fresh nonce. Exact-output user tests retain their literal-output exception. Its
+distinguishing property is that it runs in **Claude Code, VS Code
 Copilot Chat, Codex, and Google Antigravity**: it emits the continuation decision in each host's own shape and
 uses each host's stable final-message surface rather than assuming Claude Code's
 transcript format.
@@ -165,6 +167,21 @@ the agent to re-read its session-scoped state and reconstruct the direct primary
 verified evidence. A summary's suggested next step cannot silently promote fallback backlog
 work over unfinished direct work.
 
+### Context-driven events and reconciliation
+
+Supported host lifecycle hooks append redacted, workspace-scoped CloudEvents for
+`session.started`, `source.changed`, `test.failed`, `environment.reachable`, and
+`learning.discovered`. Startup adds a deduplicated sparse `heartbeat.reconcile` fact at most once
+per configured heartbeat bucket. GitHub, CI and deployment adapters produce PR, deployment and
+incident facts. Emitters are best-effort and cannot complete or corrupt the direct goal.
+
+LumvaleOS owns event deduplication, deterministic due-time calculation, occurrence records,
+leases, stale-claim recovery and evidence acceptance. Startup may reconcile while a direct goal is
+active but does not lease fallback work; the dispatcher is consulted once at the goal-safe fallback
+boundary. If every IDE or executor is closed, context-driven work waits until one reopens unless a
+separately authorised deadline scheduler emits an idempotent due event. The external scheduler never
+executes the prompt itself.
+
 ## Host boundaries
 
 A Stop hook can recover a transport failure only when the host actually invokes Stop and
@@ -213,7 +230,7 @@ Tests are written with [bats](https://github.com/bats-core/bats-core):
 bats tests/
 ```
 
-82 tests across 8 suites (`antigravity`, `bounds`, `dependencies`, `doctor`, `failopen`,
+89 tests across 8 suites (`antigravity`, `bounds`, `dependencies`, `doctor`, `failopen`,
 `invariants`, `parity`, `status`).
 CI runs this suite on a 3-OS matrix (Ubuntu, macOS, Windows) on every push and pull
 request.

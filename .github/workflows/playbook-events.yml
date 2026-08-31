@@ -1,0 +1,34 @@
+name: LumvaleOS playbook events
+on:
+  pull_request:
+    types: [opened, closed]
+  deployment_status:
+  issues:
+    types: [opened]
+permissions:
+  contents: read
+jobs:
+  pr-opened:
+    if: github.event_name == 'pull_request' && github.event.action == 'opened'
+    uses: Lumvale/lumvale-infra/.github/workflows/emit-playbook-event.yml@main
+    with:
+      event_type: pr.opened
+    secrets: inherit
+  pr-merged:
+    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+    uses: Lumvale/lumvale-infra/.github/workflows/emit-playbook-event.yml@main
+    with:
+      event_type: pr.merged
+    secrets: inherit
+  deployed:
+    if: github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success'
+    uses: Lumvale/lumvale-infra/.github/workflows/emit-playbook-event.yml@main
+    with:
+      event_type: deployment.completed
+    secrets: inherit
+  incident:
+    if: github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'incident')
+    uses: Lumvale/lumvale-infra/.github/workflows/emit-playbook-event.yml@main
+    with:
+      event_type: incident.opened
+    secrets: inherit

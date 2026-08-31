@@ -5,6 +5,8 @@
 # path. Locate the Git for Windows Bash beside the active git.exe instead. Any launcher
 # failure is fail-open, matching the hook's safety contract.
 
+param([string]$HookArgument = '')
+
 function Write-AmirLoopDebug {
     param([string]$Message)
 
@@ -55,7 +57,12 @@ if (-not (Test-Path -LiteralPath $hook)) {
 
 Write-AmirLoopDebug "Launching $gitBash $hook with $($payload.Length) input characters."
 try {
-    $payload | & $gitBash $hook
+    if ([string]::IsNullOrWhiteSpace($HookArgument)) {
+        $payload | & $gitBash $hook
+    }
+    else {
+        $payload | & $gitBash $hook $HookArgument
+    }
     $hookExitCode = $LASTEXITCODE
 }
 catch {
