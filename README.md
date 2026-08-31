@@ -13,6 +13,27 @@ Copilot Chat, Codex, and Google Antigravity**: it emits the continuation decisio
 uses each host's stable final-message surface rather than assuming Claude Code's
 transcript format.
 
+## Vision: governed general-purpose autonomy
+
+Amir Loop is intended to grow toward general and eventually superhuman problem-solving
+capability: autonomous execution, self-correction, self-healing, self-development, and
+evidence-driven improvement across long-lived goals. This is a direction and an
+engineering programme, not a claim that the present plugin is AGI or ASI.
+
+The architectural invariant is governed recursive improvement. Hooks and agentic AI SDK
+adapters may observe failures, choose a declared local or cloud inference route, retry or
+repair integrations, and propose improvements. Deterministic policy must still decide
+eligibility, authority, leases, budgets, routing constraints, evidence acceptance, and
+rollback. The model may infer how to do authorized work; it may not grant itself a
+permission, weaken a safety control, bypass authentication or tenancy, expose credentials,
+or describe an unverified recovery as complete.
+
+Portable routing, recovery, permission-diagnosis, and agent-SDK contracts belong in Amir
+Loop so third-party users receive them. Fleet account ids, approved providers, cost limits,
+tenancy, release authority, and architecture policy belong in companion capabilities such
+as amir-loop-lumvaleos. A host-specific feature is incomplete until the same invariant is
+available through every supported host adapter.
+
 ## Install
 
 ### Claude Code
@@ -74,6 +95,33 @@ Stop result to and from the shared loop implementation.
 
 On Windows, restart Antigravity after installing or updating the plugin so it reloads
 the hook definition. Existing conversations do not retroactively acquire a changed hook.
+
+## Cross-host parity contract
+
+Amir Loop features belong in the shared engine, not a host fork. Claude Code, VS Code,
+Codex, and Antigravity all use the shared Bash engine for completion, cancellation,
+dependency and runtime profiles, Bedrock retry classification, goal precedence, and
+dispatcher closeout. Adapters may translate payload and decision shapes only.
+
+| Capability | Claude Code | VS Code | Codex | Antigravity |
+|---|---|---|---|---|
+| Two-phase completion and false-promise rejection | shared Stop | shared Stop | shared Stop with stable final-message field | shared Stop through native adapter |
+| Exact-output user contract | UserPromptSubmit | UserPromptSubmit | UserPromptSubmit | latest user message derived during native PreInvocation |
+| Startup reconciliation and sparse heartbeat | SessionStart | SessionStart | SessionStart | idempotent native PreInvocation |
+| Source/test/environment/learning observations | governed PostToolUse | governed PostToolUse | governed PostToolUse | native matcher groups translated to redacted shared observations |
+| Runtime/dependency profiles and Bedrock retry policy | shared | shared | shared | shared |
+| Cancellation, bounds, stale-state recovery | shared | shared | shared | shared |
+
+Antigravity does not expose SessionStart or UserPromptSubmit; its documented
+PreInvocation payload includes the workspace, conversation, and transcript, which is
+enough to provide the same behavior without polling or using an unsupported event name.
+Its PostToolUse payload intentionally omits tool arguments, so the adapter classifies
+failed test commands only from redacted failure metadata and never copies command output
+into an event.
+
+Every behavioral change must add or update regression coverage for all four hosts. A
+host-specific optimization is acceptable only when the shared invariant remains tested
+through every other host's native adapter or transcript shape.
 
 ## Windows prerequisite
 
@@ -252,7 +300,7 @@ Tests are written with [bats](https://github.com/bats-core/bats-core):
 bats tests/
 ```
 
-102 tests across 9 suites (`antigravity`, `bounds`, `dependencies`, `doctor`, `failopen`,
+110 tests across 9 suites (`antigravity`, `bounds`, `dependencies`, `doctor`, `failopen`,
 `invariants`, `parity`, `setup-args`, `status`).
 CI runs this suite on a four-runner matrix (Ubuntu, Apple Silicon macOS, Intel macOS and Windows) on every push and pull
 request.

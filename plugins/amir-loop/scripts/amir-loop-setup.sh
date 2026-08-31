@@ -303,6 +303,17 @@ would switch to fallback backlog work while the primary goal still has actionabl
 If, and only if, the work above is genuinely finished and verified, output
 <promise>$PROMISE</promise> to end the loop.
 
+## Governed recursive improvement
+
+Pursue self-correction, self-healing, reusable learning and capability growth when they
+advance the primary goal. Use supported hooks and agent SDK surfaces to diagnose provider,
+permission and integration failures; select only declared routing fallbacks and use only
+authority the user or governing system already granted. Never treat a permission bottleneck
+as permission to bypass authentication, authorization, entitlement, tenancy, cost, safety
+or production gates. A change to the loop's own governance requires independent evidence
+and the review tier declared by the governing architecture. Recovery is complete only after
+the affected dependency and required evidence validate successfully.
+
 Finishing one item is not finishing. If you have just filed follow-up work, or named
 anything as pending, blocked, deferred, or a next step, that is your own evidence there is
 more to do - pick the next thing up and keep going instead of promising. Do not promise to

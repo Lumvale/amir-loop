@@ -140,6 +140,20 @@ if [ -n "$OBSERVE_EVENT" ]; then
   mkdir -p "$CWD/.claude" "$CWD/.lumvaleos" 2>/dev/null || exit 0
   if [ "$OBSERVE_EVENT" = "user-prompt" ]; then
     prompt=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.prompt // empty' 2>/dev/null)
+    if [ -z "$prompt" ] && [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
+      prompt=$("$JQ" -rs '
+        [ .[] |
+          if .type == "user.message" then (.data.content // "")
+          elif .message.role == "user" then
+            (if (.message.content | type) == "array" then
+               [.message.content[]? | select(.type == "text") | .text] | join("\n")
+             else (.message.content // "") end)
+          elif (.userMessage? | type) == "string" then .userMessage
+          else empty end |
+          select(type == "string" and length > 0)
+        ] | last // empty
+      ' "$TRANSCRIPT" 2>/dev/null || true)
+    fi
     if printf '%s' "$prompt" | grep -Eiq '(^|[[:space:]])(reply|respond|output|return)[[:space:]]+with[[:space:]]+exactly([[:space:]:]|$)'; then
       printf '%s\n' "${TURN_ID:-legacy}" > "$EXACT_OUTPUT_FILE" 2>/dev/null || true
     else
@@ -544,6 +558,17 @@ would switch to fallback backlog work while the primary goal still has actionabl
 If, and only if, there is nothing further you can advance, output
 <promise>$PROMISE</promise> to end the loop.
 
+## Governed recursive improvement
+
+Pursue self-correction, self-healing, reusable learning and capability growth when they
+advance the primary goal. Use supported hooks and agent SDK surfaces to diagnose provider,
+permission and integration failures; select only declared routing fallbacks and use only
+authority the user or governing system already granted. Never treat a permission bottleneck
+as permission to bypass authentication, authorization, entitlement, tenancy, cost, safety
+or production gates. A change to the loop's own governance requires independent evidence
+and the review tier declared by the governing architecture. Recovery is complete only after
+the affected dependency and required evidence validate successfully.
+
 The promise means the WORK IS EXHAUSTED, not that the task you happened to pick is done.
 Finishing one item is not finishing. If you have just filed follow-up work, or named
 anything as pending, blocked, deferred, or a next step, that is your own evidence there is
@@ -602,8 +627,7 @@ LAST="$LAST_ASSISTANT"
 #      last message;
 #   2. the final assistant.message is routinely a tool-only turn with content "", so a
 #      plain `last` is empty.
-if [ -z "$LAST" ]; then
-  [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ] || allow_stop
+if [ -z "$LAST" ] && [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
   LAST=$("$JQ" -rs '[.[] | select(.type=="assistant.message") | .data.content // "" | select(length>0)] | last // empty' "$TRANSCRIPT" 2>/dev/null)
   if [ -z "$LAST" ]; then
     LAST=$("$JQ" -rs '[.[] | select(.message.role=="assistant") | ([.message.content[]? | select(.type=="text") | .text] | join("\n")) | select(length>0)] | last // empty' "$TRANSCRIPT" 2>/dev/null)

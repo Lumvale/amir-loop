@@ -259,6 +259,33 @@ EOF
   [ "$(cat "$BATS_TEST_TMPDIR/.claude/.amir-loop-done-s1")" = "turn:turn-1" ]
 }
 
+@test "Claude and VS Code transcript shapes use the same two-phase closeout" {
+  closeout='<amir-loop-closeout>{"version":1,"direct_goal_exhausted":true,"continuation_escape":false,"actionable_items":[],"pending":{"pr":false,"test":false,"migration":false,"deployment":false,"cutover":false,"follow_up":false,"verification":false},"dependencies":[],"playbook":{"status":"none","dispatcher_terminal":true}}</amir-loop-closeout>'
+  for shape in claude vscode; do
+    rm -rf "$BATS_TEST_TMPDIR/.claude"
+    arm_state 1 10
+    if [ "$shape" = "claude" ]; then
+      jq -nc --arg value "$closeout" '{message:{role:"assistant",content:[{type:"text",text:$value}]}}' > "$BATS_TEST_TMPDIR/t.jsonl"
+    else
+      jq -nc --arg value "$closeout" '{type:"assistant.message",data:{content:$value}}' > "$BATS_TEST_TMPDIR/t.jsonl"
+    fi
+    TRANSCRIPT="$BATS_TEST_TMPDIR/t.jsonl"
+    run run_hook
+    [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+    nonce=$(jq -r '.nonce' "$BATS_TEST_TMPDIR/.claude/.amir-loop-closeout-s1.json")
+    confirmation="<amir-loop-confirm>$nonce</amir-loop-confirm><promise>AMIR LOOP COMPLETE</promise>"
+    if [ "$shape" = "claude" ]; then
+      jq -nc --arg value "$confirmation" '{message:{role:"assistant",content:[{type:"text",text:$value}]}}' > "$BATS_TEST_TMPDIR/t.jsonl"
+    else
+      jq -nc --arg value "$confirmation" '{type:"assistant.message",data:{content:$value}}' > "$BATS_TEST_TMPDIR/t.jsonl"
+    fi
+    run run_hook
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+    [ ! -f "$TEST_STATE" ]
+  done
+}
+
 @test "closeout and promise in one escape response cannot skip phase two" {
   arm_state 1 10
   closeout='<amir-loop-closeout>{"version":1,"direct_goal_exhausted":true,"continuation_escape":false,"actionable_items":[],"pending":{"pr":false,"test":false,"migration":false,"deployment":false,"cutover":false,"follow_up":false,"verification":false},"dependencies":[],"playbook":{"status":"none","dispatcher_terminal":true}}</amir-loop-closeout>'
@@ -354,6 +381,24 @@ EOF
   done
 }
 
+@test "Bedrock retry behavior is identical for Claude and VS Code transcripts" {
+  for shape in claude vscode; do
+    rm -rf "$BATS_TEST_TMPDIR/.claude"
+    arm_state 1 10
+    if [ "$shape" = "claude" ]; then
+      printf '%s\n' '{"message":{"role":"assistant","content":[{"type":"text","text":"ThrottlingException"}]}}' > "$BATS_TEST_TMPDIR/t.jsonl"
+    else
+      printf '%s\n' '{"type":"assistant.message","data":{"content":"ThrottlingException"}}' > "$BATS_TEST_TMPDIR/t.jsonl"
+    fi
+    TRANSCRIPT="$BATS_TEST_TMPDIR/t.jsonl"
+    run run_hook
+    [ "$status" -eq 0 ]
+    [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+    echo "$output" | jq -r '.reason' | grep -q 'transient provider or network error'
+    grep -q '^iteration: 1$' "$TEST_STATE"
+  done
+}
+
 @test "Bedrock authorization and validation errors fail open" {
   for signal in AccessDeniedException ValidationException ResourceNotFoundException; do
     rm -f "$BATS_TEST_TMPDIR/.claude/.amir-loop-retry-s1"
@@ -378,6 +423,25 @@ EOF
   grep -q 'credential source: workload-identity' "$TEST_STATE"
   grep -q 'observed provider activation: bedrock' "$TEST_STATE"
   ! grep -Eqi 'secret|access.key' "$TEST_STATE"
+}
+
+@test "required Bedrock runtime profile governs Claude and VS Code equally" {
+  for shape in claude vscode; do
+    rm -rf "$BATS_TEST_TMPDIR/.claude"
+    mkdir -p "$BATS_TEST_TMPDIR/.claude"
+    cp "$BATS_TEST_DIRNAME/../templates/runtime/bedrock.json" "$BATS_TEST_TMPDIR/.claude/amir-loop-runtime.json"
+    if [ "$shape" = "claude" ]; then
+      printf '%s\n' '{"message":{"role":"assistant","content":[{"type":"text","text":"work remains"}]}}' > "$BATS_TEST_TMPDIR/t.jsonl"
+    else
+      printf '%s\n' '{"type":"assistant.message","data":{"content":"work remains"}}' > "$BATS_TEST_TMPDIR/t.jsonl"
+    fi
+    TRANSCRIPT="$BATS_TEST_TMPDIR/t.jsonl"
+    AMIR_LOOP_PROVIDER=bedrock run run_hook
+    [ "$status" -eq 0 ]
+    grep -q 'provider: bedrock' "$TEST_STATE"
+    grep -q 'observed provider activation: bedrock' "$TEST_STATE"
+    ! grep -Eqi 'AWS_SECRET_ACCESS_KEY[=:]|AWS_BEARER_TOKEN_BEDROCK[=:]|AKIA[0-9A-Z]{16}' "$TEST_STATE"
+  done
 }
 
 @test "invalid Bedrock runtime profile fails closed in the brief" {
@@ -422,6 +486,21 @@ EOF
   run grep -q 'does not change priority, authorise self-modification' \
     "$BATS_TEST_DIRNAME/../plugins/amir-loop/hooks/amir-loop-stop.sh"
   [ "$status" -eq 0 ]
+}
+
+@test "automatic and manual briefs enforce governed recursive improvement" {
+  use_fixture vscode-copilot.jsonl
+  run run_hook
+  [ "$status" -eq 0 ]
+  grep -q '## Governed recursive improvement' "$TEST_STATE"
+  grep -q 'Never treat a permission bottleneck' "$TEST_STATE"
+  grep -q 'select only declared routing fallbacks' "$TEST_STATE"
+
+  rm -rf "$BATS_TEST_TMPDIR/.claude"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-setup.sh" "Repair the active integration"
+  [ "$status" -eq 0 ]
+  grep -q '## Governed recursive improvement' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
 }
 
 @test "Codex Windows hook expands PLUGIN_ROOT with PowerShell syntax" {

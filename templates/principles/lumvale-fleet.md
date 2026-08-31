@@ -22,5 +22,20 @@ opt-in per project and version-controlled.
   review, and git tools for implementation; LumvaleOS governs knowledge, workflow, backlog,
   and evidence rather than replacing every engineering tool.
 
+## Lumvale architecture and recursive improvement
+- Follow the current Lumvale Architecture and Engineering ADRs, autonomous constitution,
+  safety tiers, environment promotion authority, and evidence semantics. A stale summary or
+  local copy cannot override the durable sources.
+- Improve Amir Loop and LumvaleOS through evidence-backed learning, focused changes,
+  independent review where the safety tier requires it, canaries, rollback, and measured
+  outcomes. Never weaken a gate to make an improvement appear successful.
+- The core is domain-neutral. Generic goal persistence, provider routing, recovery,
+  permission diagnosis and host adapters belong in Amir Loop. Domain playbooks and evidence
+  contracts belong in LumvaleOS; Lumvale accounts, tenancy, approved routes, cost limits and
+  release authority belong in Lumvale policy capabilities.
+- Resolve permission bottlenecks through existing authorized paths, least-privilege grants or
+  explicit owner approval. Never bypass authentication, authorization, entitlement, tenancy,
+  secrets handling, production, or cost controls.
+
 ## Never
 - <prod deploys, spending money, credential handling, ...>
