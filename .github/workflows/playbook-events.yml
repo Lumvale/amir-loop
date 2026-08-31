@@ -1,7 +1,7 @@
 name: LumvaleOS playbook events
 on:
   pull_request:
-    types: [opened, closed]
+    types: [opened, reopened, closed]
   deployment_status:
   issues:
     types: [opened]
@@ -9,7 +9,7 @@ permissions:
   contents: read
 jobs:
   pr-opened:
-    if: github.event_name == 'pull_request' && github.event.action == 'opened'
+    if: github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'reopened')
     uses: Lumvale/lumvale-infra/.github/workflows/emit-playbook-event.yml@main
     with:
       event_type: pr.opened
