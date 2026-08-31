@@ -13,6 +13,27 @@ Copilot Chat, Codex, and Google Antigravity**: it emits the continuation decisio
 uses each host's stable final-message surface rather than assuming Claude Code's
 transcript format.
 
+## Vision: governed general-purpose autonomy
+
+Amir Loop is intended to grow toward general and eventually superhuman problem-solving
+capability: autonomous execution, self-correction, self-healing, self-development, and
+evidence-driven improvement across long-lived goals. This is a direction and an
+engineering programme, not a claim that the present plugin is AGI or ASI.
+
+The architectural invariant is governed recursive improvement. Hooks and agentic AI SDK
+adapters may observe failures, choose a declared local or cloud inference route, retry or
+repair integrations, and propose improvements. Deterministic policy must still decide
+eligibility, authority, leases, budgets, routing constraints, evidence acceptance, and
+rollback. The model may infer how to do authorized work; it may not grant itself a
+permission, weaken a safety control, bypass authentication or tenancy, expose credentials,
+or describe an unverified recovery as complete.
+
+Portable routing, recovery, permission-diagnosis, and agent-SDK contracts belong in Amir
+Loop so third-party users receive them. Fleet account ids, approved providers, cost limits,
+tenancy, release authority, and architecture policy belong in companion capabilities such
+as amir-loop-lumvaleos. A host-specific feature is incomplete until the same invariant is
+available through every supported host adapter.
+
 ## Install
 
 ### Claude Code
@@ -75,6 +96,33 @@ Stop result to and from the shared loop implementation.
 On Windows, restart Antigravity after installing or updating the plugin so it reloads
 the hook definition. Existing conversations do not retroactively acquire a changed hook.
 
+## Cross-host parity contract
+
+Amir Loop features belong in the shared engine, not a host fork. Claude Code, VS Code,
+Codex, and Antigravity all use the shared Bash engine for completion, cancellation,
+dependency and runtime profiles, Bedrock retry classification, goal precedence, and
+dispatcher closeout. Adapters may translate payload and decision shapes only.
+
+| Capability | Claude Code | VS Code | Codex | Antigravity |
+|---|---|---|---|---|
+| Two-phase completion and false-promise rejection | shared Stop | shared Stop | shared Stop with stable final-message field | shared Stop through native adapter |
+| Exact-output user contract | UserPromptSubmit | UserPromptSubmit | UserPromptSubmit | latest user message derived during native PreInvocation |
+| Startup reconciliation and sparse heartbeat | SessionStart | SessionStart | SessionStart | idempotent native PreInvocation |
+| Source/test/environment/learning observations | governed PostToolUse | governed PostToolUse | governed PostToolUse | native matcher groups translated to redacted shared observations |
+| Runtime/dependency profiles and Bedrock retry policy | shared | shared | shared | shared |
+| Cancellation, bounds, stale-state recovery | shared | shared | shared | shared |
+
+Antigravity does not expose SessionStart or UserPromptSubmit; its documented
+PreInvocation payload includes the workspace, conversation, and transcript, which is
+enough to provide the same behavior without polling or using an unsupported event name.
+Its PostToolUse payload intentionally omits tool arguments, so the adapter classifies
+failed test commands only from redacted failure metadata and never copies command output
+into an event.
+
+Every behavioral change must add or update regression coverage for all four hosts. A
+host-specific optimization is acceptable only when the shared invariant remains tested
+through every other host's native adapter or transcript shape.
+
 ## Windows prerequisite
 
 Claude and Copilot invoke `bash "${CLAUDE_PLUGIN_ROOT}/hooks/amir-loop-stop.sh"`, so
@@ -105,6 +153,7 @@ Environment variables read by `hooks/amir-loop-stop.sh`:
 | `AMIR_LOOP_UNTIL` | unset | Absolute date override for the deadline. Takes priority over `AMIR_LOOP_DAYS` when set. An unparseable value is treated as already expired. |
 | `AMIR_LOOP_OFF` | `0` | Set to `1` as a global kill switch — the hook always allows the stop. |
 | `AMIR_LOOP_AUTOARM` | `1` | Set to `0` to only continue a loop someone already started, never auto-arm a new one on a bare Stop. This is the posture used by the `~/.claude/settings.json` + `--claude-code` install shape, below. |
+| `AMIR_LOOP_PROVIDER` | unset | Optional provider activation signal for hosts that do not expose one in hook payloads. Set to `bedrock` only when the host itself is already configured to perform inference through Amazon Bedrock. |
 
 ### Principles file
 
@@ -154,6 +203,27 @@ ordinary shell, repository, build, test, review, and git operations remain nativ
   }]
 }
 ```
+
+### Amazon Bedrock
+
+Amir Loop does not proxy or invoke a model itself; it preserves the host's continuation lifecycle.
+Bedrock support is therefore native provider governance rather than a second inference client. Copy
+`templates/runtime/bedrock.json` to `.claude/amir-loop-runtime.json`, choose the deployment's region
+and pinned model or application inference-profile ARN, and keep credentials out of that file. The
+profile is resolved from the working directory upwards, included in manually and automatically armed
+briefs, checked by `/amir-loop-doctor`, and treated as a required preflight when `required` is true.
+
+For Claude Code, follow the [official Bedrock deployment guide](https://code.claude.com/docs/en/amazon-bedrock)
+and configure the host with `CLAUDE_CODE_USE_BEDROCK=1`; it uses the AWS SDK default
+credential chain (or a Bedrock bearer token) and resolves `AWS_REGION`, `AWS_DEFAULT_REGION`, then the
+active AWS profile. Pin `ANTHROPIC_MODEL` or the default model variables rather than relying on an
+alias that may change. Other hosts can set `AMIR_LOOP_PROVIDER=bedrock` after their own Bedrock
+adapter is active. Amir Loop never reads, logs, copies, or validates secret values and never makes a
+network call merely to process a Stop event.
+
+Bedrock throttling, service-unavailable, stream, model-timeout, and credential-chain timeout signals
+use the same bounded retry budget as other transient provider failures. Access-denied and validation
+errors are intentionally not retried: those require configuration repair, not a retry storm.
 
 Each primary goal includes one bounded related-work reconciliation. The loop searches the
 relevant issues, boards, and open pull requests for matching identifiers, symptoms, component,
@@ -230,7 +300,7 @@ Tests are written with [bats](https://github.com/bats-core/bats-core):
 bats tests/
 ```
 
-94 tests across 9 suites (`antigravity`, `bounds`, `dependencies`, `doctor`, `failopen`,
+110 tests across 9 suites (`antigravity`, `bounds`, `dependencies`, `doctor`, `failopen`,
 `invariants`, `parity`, `setup-args`, `status`).
 CI runs this suite on a four-runner matrix (Ubuntu, Apple Silicon macOS, Intel macOS and Windows) on every push and pull
 request.

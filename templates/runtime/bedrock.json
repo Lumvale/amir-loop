@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "provider": "bedrock",
+  "required": true,
+  "region": "us-east-1",
+  "model": "us.anthropic.claude-sonnet-4-6",
+  "credential_source": "default-chain",
+  "preflight": "Confirm the host reports Amazon Bedrock, the configured region and pinned model, and usable credentials without printing secrets.",
+  "repair": "Configure Bedrock access in the host, select an enabled model or inference profile, then start a fresh session."
+}

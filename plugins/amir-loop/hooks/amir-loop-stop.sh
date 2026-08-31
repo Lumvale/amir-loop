@@ -140,6 +140,20 @@ if [ -n "$OBSERVE_EVENT" ]; then
   mkdir -p "$CWD/.claude" "$CWD/.lumvaleos" 2>/dev/null || exit 0
   if [ "$OBSERVE_EVENT" = "user-prompt" ]; then
     prompt=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.prompt // empty' 2>/dev/null)
+    if [ -z "$prompt" ] && [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
+      prompt=$("$JQ" -rs '
+        [ .[] |
+          if .type == "user.message" then (.data.content // "")
+          elif .message.role == "user" then
+            (if (.message.content | type) == "array" then
+               [.message.content[]? | select(.type == "text") | .text] | join("\n")
+             else (.message.content // "") end)
+          elif (.userMessage? | type) == "string" then .userMessage
+          else empty end |
+          select(type == "string" and length > 0)
+        ] | last // empty
+      ' "$TRANSCRIPT" 2>/dev/null || true)
+    fi
     if printf '%s' "$prompt" | grep -Eiq '(^|[[:space:]])(reply|respond|output|return)[[:space:]]+with[[:space:]]+exactly([[:space:]:]|$)'; then
       printf '%s\n' "${TURN_ID:-legacy}" > "$EXACT_OUTPUT_FILE" 2>/dev/null || true
     else
@@ -222,6 +236,7 @@ fi
 # is how two sub-repo loops ended up running with no backlog rules at all.
 PRINCIPLES=""
 DEPENDENCIES=""
+RUNTIME_PROFILE=""
 _dir="$CWD"
 while [ -n "$_dir" ]; do
   if [ -z "$PRINCIPLES" ] && [ -f "$_dir/.claude/amir-loop-principles.md" ]; then
@@ -230,7 +245,10 @@ while [ -n "$_dir" ]; do
   if [ -z "$DEPENDENCIES" ] && [ -f "$_dir/.claude/amir-loop-dependencies.json" ]; then
     DEPENDENCIES="$_dir/.claude/amir-loop-dependencies.json"
   fi
-  [ -n "$PRINCIPLES" ] && [ -n "$DEPENDENCIES" ] && break
+  if [ -z "$RUNTIME_PROFILE" ] && [ -f "$_dir/.claude/amir-loop-runtime.json" ]; then
+    RUNTIME_PROFILE="$_dir/.claude/amir-loop-runtime.json"
+  fi
+  [ -n "$PRINCIPLES" ] && [ -n "$DEPENDENCIES" ] && [ -n "$RUNTIME_PROFILE" ] && break
   _parent=$(dirname "$_dir")
   [ "$_parent" = "$_dir" ] && break
   _dir="$_parent"
@@ -277,6 +295,68 @@ The dependency policy at $DEPENDENCIES is invalid. Treat policy configuration as
 dependency failure: do not begin substantive work. Report that the file must use schema version
 1 with dependency id and policy required, preferred, or off, then output
 <amir-loop-blocked>dependency-policy</amir-loop-blocked>."
+  fi
+fi
+
+# Provider profiles are native, portable Amir Loop policy. They contain identifiers and
+# preflight instructions only — never AWS keys or bearer tokens. The host remains responsible
+# for inference; this contract makes the expected provider/model/region explicit to the agent
+# and gives Bedrock deployments a fail-closed preflight before substantive work.
+RUNTIME_BRIEF=""
+if [ -n "$RUNTIME_PROFILE" ]; then
+  if "$JQ" -e '
+    .version == 1 and (.provider | type == "string" and length > 0) and
+    ((.required // true) | type == "boolean") and
+    ((.region // "") | type == "string") and
+    ((.model // "") | type == "string") and
+    ((.credential_source // "host") | type == "string") and
+    ((.preflight // "") | type == "string") and
+    ((.repair // "") | type == "string") and
+    (.provider != "bedrock" or
+      ((.region | type == "string" and length > 0) and
+       (.model | type == "string" and length > 0) and
+       (.credential_source | type == "string" and length > 0)))
+  ' "$RUNTIME_PROFILE" >/dev/null 2>&1; then
+    PROFILE_PROVIDER=$("$JQ" -r '.provider' "$RUNTIME_PROFILE" 2>/dev/null || true)
+    PROFILE_REQUIRED=$("$JQ" -r '.required // true' "$RUNTIME_PROFILE" 2>/dev/null || true)
+    ACTIVE_PROVIDER="${AMIR_LOOP_PROVIDER:-}"
+    if [ -z "$ACTIVE_PROVIDER" ] && [ "${CLAUDE_CODE_USE_BEDROCK:-0}" = "1" ]; then
+      ACTIVE_PROVIDER="bedrock"
+    fi
+    [ -n "$ACTIVE_PROVIDER" ] || ACTIVE_PROVIDER="host"
+    RUNTIME_BRIEF=$("$JQ" -r '
+      ["## Inference runtime profile", "",
+       "Before substantive work, verify the active host runtime matches this profile. Do not",
+       "print, persist, or include credentials in evidence.", "",
+       "- provider: " + .provider,
+       "- required: " + ((.required // true) | tostring),
+       "- region: " + (.region // "host-resolved"),
+       "- model: " + (.model // "host-resolved"),
+       "- credential source: " + (.credential_source // "host"),
+       "- preflight: " + (.preflight // "confirm provider, model, region and credential availability without exposing secrets"),
+       (if (.repair // "") == "" then empty else "- repair: " + .repair end), "",
+       "For provider=bedrock, accept the AWS SDK default credential chain, workload identity,",
+       "or a Bedrock bearer token; never require long-lived static keys. Confirm model access and",
+       "region compatibility through the host/provider status surface. A required mismatch must",
+       "pause with <amir-loop-blocked>runtime-provider</amir-loop-blocked>; it is not completion."] |
+       join("\n")
+    ' "$RUNTIME_PROFILE" 2>/dev/null) || RUNTIME_BRIEF=""
+    RUNTIME_BRIEF="$RUNTIME_BRIEF
+- observed provider activation: $ACTIVE_PROVIDER"
+    if [ "$PROFILE_REQUIRED" = "true" ] && [ "$ACTIVE_PROVIDER" != "$PROFILE_PROVIDER" ]; then
+      RUNTIME_BRIEF="$RUNTIME_BRIEF
+
+The required provider profile does not match the host activation signal. Do not begin
+substantive work. Repair the host and output
+<amir-loop-blocked>runtime-provider</amir-loop-blocked>."
+    fi
+  else
+    RUNTIME_BRIEF="## Inference runtime profile
+
+The runtime profile at $RUNTIME_PROFILE is invalid. Do not begin substantive work. Version 1
+requires provider and, for provider=bedrock, non-empty region, model, and credential_source.
+Never put credentials in this file. Report the repair and output
+<amir-loop-blocked>runtime-provider</amir-loop-blocked>."
   fi
 fi
 
@@ -411,6 +491,9 @@ EOF
     if [ -n "$DEPENDENCY_BRIEF" ]; then
       printf '\n\n%s\n' "$DEPENDENCY_BRIEF"
     fi
+    if [ -n "$RUNTIME_BRIEF" ]; then
+      printf '\n\n%s\n' "$RUNTIME_BRIEF"
+    fi
     cat <<EOF
 
 ## Goal precedence
@@ -475,6 +558,17 @@ would switch to fallback backlog work while the primary goal still has actionabl
 If, and only if, there is nothing further you can advance, output
 <promise>$PROMISE</promise> to end the loop.
 
+## Governed recursive improvement
+
+Pursue self-correction, self-healing, reusable learning and capability growth when they
+advance the primary goal. Use supported hooks and agent SDK surfaces to diagnose provider,
+permission and integration failures; select only declared routing fallbacks and use only
+authority the user or governing system already granted. Never treat a permission bottleneck
+as permission to bypass authentication, authorization, entitlement, tenancy, cost, safety
+or production gates. A change to the loop's own governance requires independent evidence
+and the review tier declared by the governing architecture. Recovery is complete only after
+the affected dependency and required evidence validate successfully.
+
 The promise means the WORK IS EXHAUSTED, not that the task you happened to pick is done.
 Finishing one item is not finishing. If you have just filed follow-up work, or named
 anything as pending, blocked, deferred, or a next step, that is your own evidence there is
@@ -533,8 +627,7 @@ LAST="$LAST_ASSISTANT"
 #      last message;
 #   2. the final assistant.message is routinely a tool-only turn with content "", so a
 #      plain `last` is empty.
-if [ -z "$LAST" ]; then
-  [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ] || allow_stop
+if [ -z "$LAST" ] && [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
   LAST=$("$JQ" -rs '[.[] | select(.type=="assistant.message") | .data.content // "" | select(length>0)] | last // empty' "$TRANSCRIPT" 2>/dev/null)
   if [ -z "$LAST" ]; then
     LAST=$("$JQ" -rs '[.[] | select(.message.role=="assistant") | ([.message.content[]? | select(.type=="text") | .text] | join("\n")) | select(length>0)] | last // empty' "$TRANSCRIPT" 2>/dev/null)
@@ -547,7 +640,7 @@ fi
 # ask the host to retry the same step. Unknown failures remain fail-open.
 FAILED_TURN=0
 case "$HOOK_INPUT $LAST" in
-  *"ERR_INCOMPLETE_CHUNKED_ENCODING"*|*"ERR_EMPTY_RESPONSE"*|*"ERR_CONNECTION_RESET"*|*"ECONNRESET"*|*"ETIMEDOUT"*|*"fetch failed"*|*"Please check your firewall rules and network connection"*|*"Sorry, your request failed"*|*"[System: Empty message content sanitised"*)
+  *"ERR_INCOMPLETE_CHUNKED_ENCODING"*|*"ERR_EMPTY_RESPONSE"*|*"ERR_CONNECTION_RESET"*|*"ECONNRESET"*|*"ETIMEDOUT"*|*"fetch failed"*|*"Please check your firewall rules and network connection"*|*"Sorry, your request failed"*|*"[System: Empty message content sanitised"*|*"ThrottlingException"*|*"ServiceUnavailableException"*|*"ModelStreamErrorException"*|*"ModelTimeoutException"*|*"AWS default-chain credential resolve timed out"*)
     FAILED_TURN=1 ;;
 esac
 if [ "$FAILED_TURN" = "1" ]; then

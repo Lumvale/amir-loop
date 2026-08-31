@@ -1,5 +1,54 @@
 {
   "amir-loop": {
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File hooks\\amir-loop-antigravity.ps1 -Event PreInvocation",
+        "timeout": 10
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "write_to_file|replace_file_content|multi_replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File hooks\\amir-loop-antigravity.ps1 -Event SourceChanged",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File hooks\\amir-loop-antigravity.ps1 -Event CommandCompleted",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__lumvaleos__lumvaleos_preflight",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File hooks\\amir-loop-antigravity.ps1 -Event EnvironmentReachable",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__lumvaleos__knowledge_capture",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File hooks\\amir-loop-antigravity.ps1 -Event LearningDiscovered",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "type": "command",

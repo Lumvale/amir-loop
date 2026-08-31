@@ -49,3 +49,13 @@ SETUP="$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-setup.sh"
   [ "$status" -eq 0 ]
   grep -q "max_iterations: 20" "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
 }
+
+@test "setup: Bedrock runtime profile is rendered for a manually armed loop" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  cp "$BATS_TEST_DIRNAME/../templates/runtime/bedrock.json" "$BATS_TEST_TMPDIR/.claude/amir-loop-runtime.json"
+  cd "$BATS_TEST_TMPDIR"
+  run env AMIR_LOOP_PROVIDER=bedrock bash "$SETUP" Run the governed suite
+  [ "$status" -eq 0 ]
+  grep -q 'provider: bedrock' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
+  grep -q 'observed provider activation: bedrock' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
+}

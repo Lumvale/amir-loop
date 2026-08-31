@@ -68,6 +68,7 @@ mkdir -p .claude 2>/dev/null || { echo "error: cannot create .claude here" >&2; 
 # principles-resolution block for why this must climb rather than check CWD alone.
 PRINCIPLES=""
 DEPENDENCIES=""
+RUNTIME_PROFILE=""
 _dir="$PWD"
 while [ -n "$_dir" ]; do
   if [ -z "$PRINCIPLES" ] && [ -f "$_dir/.claude/amir-loop-principles.md" ]; then
@@ -76,13 +77,17 @@ while [ -n "$_dir" ]; do
   if [ -z "$DEPENDENCIES" ] && [ -f "$_dir/.claude/amir-loop-dependencies.json" ]; then
     DEPENDENCIES="$_dir/.claude/amir-loop-dependencies.json"
   fi
-  [ -n "$PRINCIPLES" ] && [ -n "$DEPENDENCIES" ] && break
+  if [ -z "$RUNTIME_PROFILE" ] && [ -f "$_dir/.claude/amir-loop-runtime.json" ]; then
+    RUNTIME_PROFILE="$_dir/.claude/amir-loop-runtime.json"
+  fi
+  [ -n "$PRINCIPLES" ] && [ -n "$DEPENDENCIES" ] && [ -n "$RUNTIME_PROFILE" ] && break
   _parent=$(dirname "$_dir")
   [ "$_parent" = "$_dir" ] && break
   _dir="$_parent"
 done
 
 DEPENDENCY_BRIEF=""
+JQ=""
 if [ -n "$DEPENDENCIES" ]; then
   _vendor="$(cd "$(dirname "$0")/.." && pwd)/vendor/jq"
   case "$(uname -s 2>/dev/null)" in
@@ -120,6 +125,77 @@ if [ -n "$DEPENDENCIES" ]; then
 
 The dependency policy at $DEPENDENCIES is invalid. Do not begin substantive work; report the
 schema error and output <amir-loop-blocked>dependency-policy</amir-loop-blocked>."
+  fi
+fi
+
+RUNTIME_BRIEF=""
+if [ -n "$RUNTIME_PROFILE" ]; then
+  if [ -z "$JQ" ]; then
+    _vendor="$(cd "$(dirname "$0")/.." && pwd)/vendor/jq"
+    case "$(uname -s 2>/dev/null)" in
+      Linux) _cand="$_vendor/jq-linux-amd64" ;;
+      Darwin) case "$(uname -m 2>/dev/null)" in arm64) _cand="$_vendor/jq-macos-arm64";; *) _cand="$_vendor/jq-macos-amd64";; esac ;;
+      MINGW*|MSYS*|CYGWIN*) _cand="$_vendor/jq-windows-amd64.exe" ;;
+      *) _cand="" ;;
+    esac
+    if [ -n "$_cand" ] && "$_cand" --version >/dev/null 2>&1; then
+      JQ="$_cand"
+    elif command -v jq >/dev/null 2>&1; then
+      JQ="jq"
+    fi
+  fi
+  if [ -n "$JQ" ] && "$JQ" -e '
+    .version == 1 and (.provider | type == "string" and length > 0) and
+    ((.required // true) | type == "boolean") and
+    ((.region // "") | type == "string") and
+    ((.model // "") | type == "string") and
+    ((.credential_source // "host") | type == "string") and
+    ((.preflight // "") | type == "string") and
+    ((.repair // "") | type == "string") and
+    (.provider != "bedrock" or
+      ((.region | type == "string" and length > 0) and
+       (.model | type == "string" and length > 0) and
+       (.credential_source | type == "string" and length > 0)))
+  ' "$RUNTIME_PROFILE" >/dev/null 2>&1; then
+    PROFILE_PROVIDER=$("$JQ" -r '.provider' "$RUNTIME_PROFILE" 2>/dev/null || true)
+    PROFILE_REQUIRED=$("$JQ" -r '.required // true' "$RUNTIME_PROFILE" 2>/dev/null || true)
+    ACTIVE_PROVIDER="${AMIR_LOOP_PROVIDER:-}"
+    if [ -z "$ACTIVE_PROVIDER" ] && [ "${CLAUDE_CODE_USE_BEDROCK:-0}" = "1" ]; then
+      ACTIVE_PROVIDER="bedrock"
+    fi
+    [ -n "$ACTIVE_PROVIDER" ] || ACTIVE_PROVIDER="host"
+    RUNTIME_BRIEF=$("$JQ" -r '
+      ["## Inference runtime profile", "",
+       "Before substantive work, verify the active host runtime matches this profile. Do not",
+       "print, persist, or include credentials in evidence.", "",
+       "- provider: " + .provider,
+       "- required: " + ((.required // true) | tostring),
+       "- region: " + (.region // "host-resolved"),
+       "- model: " + (.model // "host-resolved"),
+       "- credential source: " + (.credential_source // "host"),
+       "- preflight: " + (.preflight // "confirm provider, model, region and credential availability without exposing secrets"),
+       (if (.repair // "") == "" then empty else "- repair: " + .repair end), "",
+       "For provider=bedrock, accept the AWS SDK default credential chain, workload identity,",
+       "or a Bedrock bearer token; never require long-lived static keys. A required mismatch must",
+       "pause with <amir-loop-blocked>runtime-provider</amir-loop-blocked>; it is not completion."] |
+       join("\n")
+    ' "$RUNTIME_PROFILE" 2>/dev/null) || RUNTIME_BRIEF=""
+    RUNTIME_BRIEF="$RUNTIME_BRIEF
+- observed provider activation: $ACTIVE_PROVIDER"
+    if [ "$PROFILE_REQUIRED" = "true" ] && [ "$ACTIVE_PROVIDER" != "$PROFILE_PROVIDER" ]; then
+      RUNTIME_BRIEF="$RUNTIME_BRIEF
+
+The required provider profile does not match the host activation signal. Do not begin
+substantive work. Repair the host and output
+<amir-loop-blocked>runtime-provider</amir-loop-blocked>."
+    fi
+  else
+    RUNTIME_BRIEF="## Inference runtime profile
+
+The runtime profile at $RUNTIME_PROFILE is invalid. Do not begin substantive work. Version 1
+requires provider and, for provider=bedrock, non-empty region, model, and credential_source.
+Never put credentials in this file. Report the repair and output
+<amir-loop-blocked>runtime-provider</amir-loop-blocked>."
   fi
 fi
 
@@ -164,6 +240,9 @@ EOF
   fi
   if [ -n "$DEPENDENCY_BRIEF" ]; then
     printf '\n\n%s\n' "$DEPENDENCY_BRIEF"
+  fi
+  if [ -n "$RUNTIME_BRIEF" ]; then
+    printf '\n\n%s\n' "$RUNTIME_BRIEF"
   fi
   cat <<EOF
 
@@ -223,6 +302,17 @@ would switch to fallback backlog work while the primary goal still has actionabl
 
 If, and only if, the work above is genuinely finished and verified, output
 <promise>$PROMISE</promise> to end the loop.
+
+## Governed recursive improvement
+
+Pursue self-correction, self-healing, reusable learning and capability growth when they
+advance the primary goal. Use supported hooks and agent SDK surfaces to diagnose provider,
+permission and integration failures; select only declared routing fallbacks and use only
+authority the user or governing system already granted. Never treat a permission bottleneck
+as permission to bypass authentication, authorization, entitlement, tenancy, cost, safety
+or production gates. A change to the loop's own governance requires independent evidence
+and the review tier declared by the governing architecture. Recovery is complete only after
+the affected dependency and required evidence validate successfully.
 
 Finishing one item is not finishing. If you have just filed follow-up work, or named
 anything as pending, blocked, deferred, or a next step, that is your own evidence there is
