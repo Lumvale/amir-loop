@@ -34,34 +34,30 @@ SETUP="$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-setup.sh"
 }
 
 @test "parity: doctor and the hook select the same jq" {
-  # The hook has no direct way to print which jq it picked, so drive it into a path
-  # where jq resolution failure is externally observable: point HOOK_INPUT at valid
-  # JSON but corrupt only if the wrong jq were silently used. Simpler and more direct:
-  # both scripts compute the vendored candidate the same way from uname; assert that
-  # computation, plus the "does it execute" probe, agree between the two scripts.
-  vendor="$BATS_TEST_DIRNAME/../plugins/amir-loop/vendor/jq"
-  case "$(uname -s 2>/dev/null)" in
-    Linux)   cand="$vendor/jq-linux-amd64" ;;
-    Darwin)  case "$(uname -m 2>/dev/null)" in
-               arm64) cand="$vendor/jq-macos-arm64" ;;
-               *)     cand="$vendor/jq-macos-amd64" ;;
-             esac ;;
-    MINGW*|MSYS*|CYGWIN*) cand="$vendor/jq-windows-amd64.exe" ;;
-    *) cand="" ;;
-  esac
+  # Neither script's platform mapping is reimplemented here - that would just be a
+  # fourth copy, unable to detect drift between the other three. Instead each script
+  # is asked to report its own answer (doctor via --print-jq, the hook via the
+  # AMIR_LOOP_JQ_DEBUG test-only escape hatch) and the two answers are compared
+  # directly. If either script's mapping is edited to point somewhere else, the two
+  # answers stop matching and this goes red - see the mutation demonstration in the
+  # PR description for proof.
+  run bash "$DOCTOR" --print-jq
+  doctor_status="$status"
+  doctor_jq="$output"
 
-  if [ -n "$cand" ] && "$cand" --version >/dev/null 2>&1; then
-    expect_vendored=1
-  else
-    expect_vendored=0
-  fi
+  run bash -c "echo '{}' | AMIR_LOOP_JQ_DEBUG=1 bash '$HOOK'"
+  hook_status="$status"
+  hook_jq="$output"
 
-  run bash "$DOCTOR"
-  if [ "$expect_vendored" = "1" ]; then
-    echo "$output" | grep -qE '^ok: +jq  vendored'
-  else
-    ! echo "$output" | grep -qE '^ok: +jq  vendored'
-  fi
+  [ "$hook_status" -eq 0 ]
+  [ "$doctor_jq" = "$hook_jq" ]
+
+  # Both scripts must actually have resolved *something* runnable, not merely agree
+  # on being empty - an agreed-empty answer would still pass the equality check above
+  # while the loop silently allows every stop.
+  [ -n "$hook_jq" ]
+  [ "$doctor_status" -eq 0 ]
+  "$hook_jq" --version >/dev/null 2>&1 || command -v "$hook_jq" >/dev/null 2>&1
 
   # hook: arm a fresh session and confirm it did NOT allow-stop-on-no-jq (i.e. it
   # actually produced JSON output), which only happens if its resolution picked a jq
