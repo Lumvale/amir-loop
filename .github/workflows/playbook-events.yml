@@ -25,7 +25,7 @@ jobs:
           else echo 'type=incident.opened' >> "$GITHUB_OUTPUT"; fi
       - uses: ./.github/actions/emit-lumvaleos-event
         with:
-          event-type: ${{ steps.classify.outputs.type }}
-          ingress-url: ${{ secrets.LUMVALEOS_EVENT_INGRESS_URL }}
-          ingress-token: ${{ secrets.LUMVALEOS_EVENT_INGRESS_TOKEN }}
-          workspace-id: ${{ secrets.LUMVALEOS_WORKSPACE_ID }}
+          event_type: ${{ steps.classify.outputs.type }}
+          ingress_url: ${{ secrets.LUMVALEOS_EVENT_INGRESS_URL }}
+          ingress_token: ${{ secrets.LUMVALEOS_EVENT_INGRESS_TOKEN }}
+          workspace_id: ${{ secrets.LUMVALEOS_WORKSPACE_ID }}
