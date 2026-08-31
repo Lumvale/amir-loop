@@ -230,9 +230,9 @@ Tests are written with [bats](https://github.com/bats-core/bats-core):
 bats tests/
 ```
 
-89 tests across 8 suites (`antigravity`, `bounds`, `dependencies`, `doctor`, `failopen`,
-`invariants`, `parity`, `status`).
-CI runs this suite on a 3-OS matrix (Ubuntu, macOS, Windows) on every push and pull
+94 tests across 9 suites (`antigravity`, `bounds`, `dependencies`, `doctor`, `failopen`,
+`invariants`, `parity`, `setup-args`, `status`).
+CI runs this suite on a four-runner matrix (Ubuntu, Apple Silicon macOS, Intel macOS and Windows) on every push and pull
 request.
 
 `jq` is vendored as a static binary per platform under
