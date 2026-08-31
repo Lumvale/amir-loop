@@ -21,7 +21,7 @@ const url = process.env.INPUT_INGRESS_URL;
 if (!url) {
   const path = `${process.env.RUNNER_TEMP || "."}/lumvaleos-playbook-event-${id}.json`;
   fs.writeFileSync(path, JSON.stringify(event));
-  console.log(`::notice::LumvaleOS ingress is not configured; preserved event at ${path}.`);
+  console.log(`::notice::LumvaleOS ingress is not configured; preserved ${type} event at ${path}.`);
   process.exit(0);
 }
 try {

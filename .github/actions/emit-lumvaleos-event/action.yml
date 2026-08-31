@@ -11,5 +11,5 @@ inputs:
     description: Stable fleet workspace scope; defaults to the repository hash.
     required: false
 runs:
-  using: node20
+  using: node24
   main: emit.mjs
