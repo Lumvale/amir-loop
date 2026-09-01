@@ -59,3 +59,81 @@ SETUP="$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-setup.sh"
   grep -q 'provider: bedrock' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
   grep -q 'observed provider activation: bedrock' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
 }
+
+# /amir-loop now passes "$ARGUMENTS" QUOTED, so this script receives the whole prompt as ONE
+# argument and re-splits it itself (#21). Unquoted, the shell tokenized the prompt first:
+#
+#   `Work on findings #3639, #3641 --max-iterations 25` -> ARGC=3: "Work" "on" "findings"
+#
+# Everything from `#` was a comment, so the prompt was truncated AND --max-iterations was silently
+# discarded - a requested cap of 25 became the default 1000, a 40x widening of the loop's primary
+# safety bound. Worse, `$(...)` in a prompt was EXECUTED by the shell before this script ran.
+#
+# These tests use the single-argument form because that is what the command now sends.
+
+@test "setup: a # in the prompt neither truncates it nor swallows the flags after it" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$SETUP" 'Work on findings #3639, #3641, #3642 --max-iterations 25'
+  [ "$status" -eq 0 ]
+  grep -q -- "#3639, #3641, #3642" "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
+  grep -q "^max_iterations: 25$" "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
+}
+
+@test "setup: a command substitution in the prompt is text, not code" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$SETUP" 'Fix the $(echo INJECTED) bug'
+  [ "$status" -eq 0 ]
+  grep -q 'echo INJECTED' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
+  ! grep -q '^INJECTED$' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
+}
+
+@test "setup: shell metacharacters in the prompt survive as written" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$SETUP" 'Investigate a; b | c && d > e'
+  [ "$status" -eq 0 ]
+  grep -q -- 'a; b | c && d > e' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
+}
+
+@test "setup: a quoted multi-word completion promise is still grouped" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$SETUP" "Fix auth --completion-promise 'ALL TESTS PASS'"
+  [ "$status" -eq 0 ]
+  grep -q '^completion_promise: "ALL TESTS PASS"$' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
+}
+
+@test "setup: an apostrophe in ordinary prose still arms the loop" {
+  # Refusing to start work over English punctuation would be a worse failure than the one #21
+  # fixed. Grouping is lost, the text is not, and the fallback says so on stderr.
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$SETUP" "Fix the O'Brien bug"
+  [ "$status" -eq 0 ]
+  [ -f "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md" ]
+  grep -q "O'Brien" "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
+}
+
+@test "setup: the single-argument form honours an explicit iteration cap" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$SETUP" 'Do the thing --max-iterations 7'
+  [ "$status" -eq 0 ]
+  grep -q "^max_iterations: 7$" "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
+}
+
+@test "setup: --cancel alone still cancels through the single-argument path" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$SETUP" '--cancel'
+  [ "$status" -eq 0 ]
+  [ -f "$BATS_TEST_TMPDIR/.claude/amir-loop-off" ]
+}
+
+@test "setup: the command passes ARGUMENTS quoted" {
+  # The whole fix depends on this one character. Unquoted, the shell tokenizes the prompt before
+  # the parser above ever runs, and every test in this block passes while the product is broken.
+  grep -q 'amir-loop-setup.sh" "\$ARGUMENTS"' "$BATS_TEST_DIRNAME/../plugins/amir-loop/commands/amir-loop.md"
+}
