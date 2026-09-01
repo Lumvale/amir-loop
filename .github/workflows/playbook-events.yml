@@ -13,6 +13,14 @@ jobs:
       (github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'reopened' || github.event.pull_request.merged == true)) ||
       (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success') ||
       (github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'incident'))
+    # GitHub-hosted ON PURPOSE, and NOT the fleet's self-hosted runner label used by the private
+    # Lumvale repos. This repository is PUBLIC, and the org's self-hosted runner group sets
+    # `allows_public_repositories: false` - a deliberate security control, because a fork's PR
+    # could otherwise execute arbitrary code on fleet infrastructure.
+    #
+    # Pointing this at the fleet label does not fail; it QUEUES FOREVER against a pool this repo
+    # can never be assigned from. Measured 2026-09-01: 40+ minutes unassigned, while the same
+    # change in the private repos ran and passed. Hosted minutes work fine here and always have.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

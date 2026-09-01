@@ -5,12 +5,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # macos-latest is arm64 and only ever exercises jq-macos-arm64. macos-13 is
-        # the last Intel (x86_64) GitHub-hosted runner, so it's kept here specifically
-        # to exercise jq-macos-amd64 - the "Assert vendored jq executes on this
-        # platform" step's Darwin/* branch selects it via uname -m, which reports
-        # x86_64 there (not arm64), so the case statement's fallback arm is what runs.
-        os: [ubuntu-latest, macos-latest, macos-13, windows-latest]
+        # macos-13 (the last Intel GitHub-hosted image) was here to exercise jq-macos-amd64,
+        # which arm64 macos-latest never selects. It stopped being allocated: measured
+        # 2026-09-01, EVERY macos-13 job in recent history sat `queued` and none ever started,
+        # so the leg contributed ZERO coverage while blocking every merge behind an admin
+        # override - which bypasses the checks that do work.
+        #
+        # The amd64 binary is now checked on macos-latest by the step below instead: its
+        # architecture is asserted from the Mach-O header, and it is executed for real whenever
+        # Rosetta is present. A check that runs is worth more than a leg that cannot.
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -52,4 +56,30 @@ jobs:
             *jq-1.8.1*) echo "OK: $bin reports $out on $(uname -s 2>/dev/null) ($(uname -m 2>/dev/null))" ;;
             *) echo "FAIL on platform $(uname -s 2>/dev/null) ($(uname -m 2>/dev/null)): expected jq-1.8.1, got: $out"; exit 1 ;;
           esac
+      # The amd64 macOS binary ships to Intel users but no runner here selects it, so assert it
+      # directly rather than leaving it unverified. `file` proves the SHIPPED bytes are a real
+      # x86_64 Mach-O - catching a truncated, empty, wrong-arch or LFS-pointer file, which is what
+      # actually goes wrong with a vendored binary. Execution is attempted too when Rosetta is
+      # installed; when it is not, that is reported and skipped rather than failing, because
+      # Rosetta's absence is a fact about the runner, not about the binary.
+      - name: Assert the Intel macOS jq binary is shipped correctly
+        if: runner.os == 'macOS'
+        run: |
+          bin="plugins/amir-loop/vendor/jq/jq-macos-amd64"
+          test -s "$bin" || { echo "FAIL: $bin is missing or empty"; exit 1; }
+          described="$(file -b "$bin")"
+          case "$described" in
+            *x86_64*) echo "OK: $bin is $described" ;;
+            *) echo "FAIL: $bin is not an x86_64 binary: $described"; exit 1 ;;
+          esac
+          if /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null; then
+            out="$(/usr/bin/arch -x86_64 "$bin" --version 2>&1)" || {
+              echo "FAIL: $bin did not execute under Rosetta: $out"; exit 1; }
+            case "$out" in
+              *jq-1.8.1*) echo "OK: $bin reports $out under Rosetta" ;;
+              *) echo "FAIL: expected jq-1.8.1 under Rosetta, got: $out"; exit 1 ;;
+            esac
+          else
+            echo "SKIP: Rosetta is not installed on this runner; architecture asserted only"
+          fi
       - run: bats tests/
