@@ -10,7 +10,7 @@ hide-from-slash-command-tool: "true"
 Arm the loop with the prompt supplied below:
 
 ```!
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/amir-loop-setup.sh" $ARGUMENTS
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/amir-loop-setup.sh" "$ARGUMENTS"
 ```
 
 Now work on that task. When you try to end your turn, the Stop hook feeds the SAME prompt back

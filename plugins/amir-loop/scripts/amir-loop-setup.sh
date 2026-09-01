@@ -29,6 +29,67 @@ PARTS=()
 # with either word as what it is: text. --max-iterations and --completion-promise stay
 # recognized anywhere in the argument list, since the command's own argument-hint
 # documents them as usable alongside a prompt.
+# ONE ARGUMENT, TOKENIZED HERE RATHER THAN BY THE SHELL (#21)
+#
+# `/amir-loop` used to interpolate `$ARGUMENTS` UNQUOTED into the command line, so the shell
+# tokenized a user-typed prompt before this script ever saw it. Two consequences, measured:
+#
+#   `Work on findings #3639, #3641 --max-iterations 25`  ->  ARGC=3: "Work" "on" "findings"
+#
+# Everything from `#` was a comment. The prompt was truncated AND `--max-iterations 25` was
+# silently discarded, so a requested cap of 25 became the default 1000 with no warning - a 40x
+# widening of the loop's primary safety bound, invisible in the banner.
+#
+#   `Fix the $(echo INJECTED) bug`  ->  "Fix" "the" "INJECTED" "bug"
+#
+# The substitution RAN. A prompt is untrusted free text and must never reach a shell as code.
+#
+# The command now passes "$ARGUMENTS" quoted, so the shell performs no splitting at all and this
+# script receives exactly one argument. We re-split it ourselves, honouring quotes and backslash
+# escapes and NOTHING else: `#`, `$(...)`, backticks, `;`, `|` and `&` are ordinary characters in
+# a sentence, and that is how they are treated.
+#
+# Multi-argument callers (direct CLI use, the test suite) are untouched: only the single-argument
+# form is re-split, and splitting a lone word yields that word.
+# `$2` = 1 means "quotes are ordinary characters". Silent on failure; the caller reports.
+_tokenize() {
+  local raw="$1" literal="${2:-0}" cur="" quote="" ch started=0 i n
+  TOKENS=()
+  n=${#raw}
+  for ((i = 0; i < n; i++)); do
+    ch="${raw:i:1}"
+    if [ -n "$quote" ]; then
+      if [ "$ch" = "$quote" ]; then quote=""; else cur+="$ch"; fi
+      continue
+    fi
+    case "$ch" in
+      "'"|'"')
+        if [ "$literal" = "1" ]; then cur+="$ch"; else quote="$ch"; fi
+        started=1 ;;
+      '\')     i=$((i + 1)); [ "$i" -lt "$n" ] && { cur+="${raw:i:1}"; started=1; } ;;
+      ' '|$'\t'|$'\n'|$'\r')
+        if [ "$started" = "1" ]; then TOKENS+=("$cur"); cur=""; started=0; fi ;;
+      *) cur+="$ch"; started=1 ;;
+    esac
+  done
+  [ -n "$quote" ] && return 1
+  [ "$started" = "1" ] && TOKENS+=("$cur")
+  return 0
+}
+
+if [ $# -eq 1 ]; then
+  if ! _tokenize "$1"; then
+    # An apostrophe in prose - "fix the O'Brien bug", "don't retry" - is far more likely than a
+    # quoting mistake. Refusing to start work over English punctuation would be a worse failure
+    # than the one being fixed, so the text is taken as written. The only thing lost is grouping,
+    # which matters solely to --completion-promise, and the fallback SAYS so: this widens what is
+    # accepted, it never silently drops anything.
+    echo "note: unbalanced quote treated as literal text; quote grouping is off for this run" >&2
+    _tokenize "$1" 1
+  fi
+  set -- ${TOKENS+"${TOKENS[@]}"}
+fi
+
 ORIG_ARGC=$#
 
 LITERAL=0
