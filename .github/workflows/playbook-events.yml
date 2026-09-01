@@ -13,7 +13,14 @@ jobs:
       (github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'reopened' || github.event.pull_request.merged == true)) ||
       (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success') ||
       (github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'incident'))
-    runs-on: ubuntu-latest
+    # The fleet runs on self-hosted AWS spot runners; GitHub-hosted minutes are budget-gated,
+    # so a hardcoded `ubuntu-latest` is refused by the org spending limit and then reported as
+    # a BUDGET problem rather than the config problem it is. This job was written that way and
+    # failed on every PR while every other workflow in the fleet ran fine.
+    #
+    # Bare, with no `|| 'ubuntu-latest'` fallback, matching the rest of the fleet: an empty
+    # variable must fail loudly as configuration, not silently move onto billable minutes.
+    runs-on: ${{ vars.RUNNER_LABEL }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: classify
