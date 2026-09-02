@@ -470,21 +470,22 @@ EOF
   echo "$reason" | grep -q "summary's suggested next step does not"
 }
 
-@test "continuation subordinates opportunity dispatch to the direct goal" {
+@test "continuation subordinates fallback work to the direct goal" {
   arm_state 2 10
   CODEX_LAST_ASSISTANT="work remains" run run_codex_hook
   [ "$status" -eq 0 ]
   reason=$(echo "$output" | jq -r '.reason')
-  echo "$reason" | grep -q 'flow.next_due_playbook'
   echo "$reason" | grep -q 'fallback boundary'
-  echo "$reason" | grep -q 'Never make this call a reason to'
+  echo "$reason" | grep -q 'follow whatever fallback rule your standing orders define'
+  echo "$reason" | grep -q 'Never make that rule a reason to'
 }
 
 @test "durable brief governs learning promotion without self modification" {
+  # The telemetry emitter stays in the portable hook; the INSTRUCTION to promote learnings
+  # is domain policy and lives in the standing-orders template a project opts into.
   run grep -q 'learning.discovered' "$BATS_TEST_DIRNAME/../plugins/amir-loop/hooks/amir-loop-stop.sh"
   [ "$status" -eq 0 ]
-  run grep -q 'does not change priority, authorise self-modification' \
-    "$BATS_TEST_DIRNAME/../plugins/amir-loop/hooks/amir-loop-stop.sh"
+  run grep -q 'does not alter priority or authorise self-modification' "$BATS_TEST_DIRNAME/../templates/principles/lumvale-fleet.md"
   [ "$status" -eq 0 ]
 }
 
@@ -550,4 +551,59 @@ EOF
   run env CLAUDE_PLUGIN_ROOT="$root" PLUGIN_ROOT= CODEX_PLUGIN_ROOT= bash -c "$cmd" </dev/null
   [ "$status" -eq 0 ]
   [ "$output" = "REACHED" ]
+}
+
+# --- Portability: the core arms itself in EVERY session, so it must not name a product ------
+#
+# The LumvaleOS dispatch stanza was hardcoded into both brief builders, so a loop armed in an
+# unrelated project was told to call flow.next_due_playbook and pull that product's backlog.
+# Standing orders are the opt-in, version-controlled place for anything that sharp; these
+# tests keep it there.
+
+@test "portable brief names no product-specific dispatcher or backlog" {
+  use_fixture vscode-copilot.jsonl
+  run run_hook
+  [ "$status" -eq 0 ]
+  ! grep -qi 'lumvaleos' "$TEST_STATE"
+  ! grep -q 'next_due_playbook' "$TEST_STATE"
+
+  rm -rf "$BATS_TEST_TMPDIR/.claude"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-setup.sh" "Ship the thing"
+  [ "$status" -eq 0 ]
+  ! grep -qi 'lumvaleos' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
+  ! grep -q 'next_due_playbook' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
+}
+
+@test "a project with no standing orders still gets a generic fallback rule" {
+  use_fixture vscode-copilot.jsonl
+  run run_hook
+  [ "$status" -eq 0 ]
+  grep -q '## Fallback work' "$TEST_STATE"
+  grep -q 'collective of principals and domain experts' "$TEST_STATE"
+}
+
+@test "standing orders replace the generic fallback rather than stacking with it" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  echo "PROJECT BACKLOG SENTINEL" > "$BATS_TEST_TMPDIR/.claude/amir-loop-principles.md"
+  use_fixture vscode-copilot.jsonl
+  run run_hook
+  [ "$status" -eq 0 ]
+  grep -q 'PROJECT BACKLOG SENTINEL' "$TEST_STATE"
+  ! grep -q '## Fallback work' "$TEST_STATE"
+}
+
+@test "manual setup applies the same fallback rule as the auto-armed hook" {
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-setup.sh" "Ship the thing"
+  [ "$status" -eq 0 ]
+  grep -q '## Fallback work' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
+
+  rm -rf "$BATS_TEST_TMPDIR/.claude"
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  echo "PROJECT BACKLOG SENTINEL" > "$BATS_TEST_TMPDIR/.claude/amir-loop-principles.md"
+  run bash "$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-setup.sh" "Ship the thing"
+  [ "$status" -eq 0 ]
+  grep -q 'PROJECT BACKLOG SENTINEL' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
+  ! grep -q '## Fallback work' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
 }
