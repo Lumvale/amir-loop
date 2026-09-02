@@ -97,7 +97,17 @@ fi
 [ "${AMIR_LOOP_OFF:-0}" = "1" ] && allow_stop
 
 CWD=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.cwd // empty' 2>/dev/null)
-[ -n "$CWD" ] || CWD="$PWD"
+# No cwd in the payload used to fall back to `$PWD`, which is not a safe guess: the hook then
+# ARMS A LOOP in whatever directory the hook process happened to be in. Measured 2026-09-03 on
+# Windows, once the launcher fix in #24 made these hooks execute at all - an empty payload
+# scattered `.claude/.amir-loop-campaign`, `amir-loop.nosession.local.md` and nested `.claude`
+# and `.lumvaleos` directories into three unrelated git worktrees, simply because a shell had
+# cd'd there. A loop armed against the wrong workspace also reads the wrong backlog.
+#
+# A hook that cannot tell which workspace it is in must not choose one. Standing down is the
+# fail-open direction this file already takes everywhere else: the stop is allowed, and the
+# next turn with a readable payload arms normally.
+[ -n "$CWD" ] || allow_stop
 if command -v cygpath >/dev/null 2>&1; then
   CWD=$(cygpath -u "$CWD" 2>/dev/null) || allow_stop
 fi
