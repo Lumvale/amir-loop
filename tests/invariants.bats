@@ -521,17 +521,33 @@ EOF
 
 @test "generic hook launcher fails open when no plugin root is provided" {
   local hooks="$BATS_TEST_DIRNAME/../plugins/amir-loop/hooks/hooks.json"
-  run jq -r '.hooks.Stop[0].hooks[0].command' "$hooks"
+  local cmd
+  cmd=$(jq -r '.hooks.Stop[0].hooks[0].command' "$hooks")
+  run env CLAUDE_PLUGIN_ROOT= PLUGIN_ROOT= CODEX_PLUGIN_ROOT= bash -c "$cmd" </dev/null
   [ "$status" -eq 0 ]
-  [[ "$output" == *'printenv CLAUDE_PLUGIN_ROOT PLUGIN_ROOT CODEX_PLUGIN_ROOT'* ]]
-  [[ "$output" != *'exec bash'* ]]
+  [ -z "$output" ]
 }
 
 @test "generic hook command reads the plugin root at runtime on Windows" {
   local hooks="$BATS_TEST_DIRNAME/../plugins/amir-loop/hooks/hooks.json"
-  run jq -r '.hooks.Stop[0].hooks[0].command' "$hooks"
+  local cmd
+  cmd=$(jq -r '.hooks.Stop[0].hooks[0].command' "$hooks")
+
+  # The braced form is substituted textually by the host, which would put raw Windows
+  # backslashes back into the command. The root must be read from the environment.
+  [[ "$cmd" != *'${CLAUDE_PLUGIN_ROOT}'* ]]
+
+  mkdir -p "$BATS_TEST_TMPDIR/root/hooks"
+  cat > "$BATS_TEST_TMPDIR/root/hooks/amir-loop-stop.sh" <<'EOF'
+#!/usr/bin/env bash
+echo REACHED
+EOF
+
+  local root="$BATS_TEST_TMPDIR/root"
+  if command -v cygpath >/dev/null 2>&1; then
+    root=$(cygpath -w "$BATS_TEST_TMPDIR/root")
+  fi
+  run env CLAUDE_PLUGIN_ROOT="$root" PLUGIN_ROOT= CODEX_PLUGIN_ROOT= bash -c "$cmd" </dev/null
   [ "$status" -eq 0 ]
-  [[ "$output" == *'printenv CLAUDE_PLUGIN_ROOT PLUGIN_ROOT CODEX_PLUGIN_ROOT'* ]]
-  [[ "$output" == *'bash {}/hooks/amir-loop-stop.sh'* ]]
-  [[ "$output" != *'${CLAUDE_PLUGIN_ROOT}'* ]]
+  [ "$output" = "REACHED" ]
 }
