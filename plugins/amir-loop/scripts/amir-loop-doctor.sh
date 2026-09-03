@@ -44,7 +44,10 @@ ok "bash ${BASH_VERSION%%(*} at $(command -v bash)"
 case "$(uname -s 2>/dev/null)" in
   MINGW*|MSYS*|CYGWIN*)
     if [ -e "${SYSTEMROOT:-/c/Windows}/System32/bash.exe" ] || [ -e "/c/Windows/System32/bash.exe" ]; then
-      warn "host bash: System32 ships a bash.exe (WSL) and precedes anything appended to PATH, so the host may launch WSL, where every hook is inert. Confirm in PowerShell with: (Get-Command bash -All | Select-Object -First 1).Source - if that prints System32, put Git for Windows' bin ahead of System32 on PATH, or run plugins/amir-loop/scripts/patch-windows-hooks.sh (see docs/windows-wsl-hooks.md)"
+      # Name this installation's own copy of the setup script, not a repo-relative path:
+      # a Claude Code install ships only plugins/amir-loop, so "plugins/amir-loop/scripts/..."
+      # is a path the user cannot cd to.
+      warn "host bash: System32 ships a bash.exe (WSL) and precedes anything appended to PATH, so the host may launch WSL, where every hook is inert. Confirm in PowerShell with: (Get-Command bash -All | Select-Object -First 1).Source - if that prints System32, put Git for Windows' bin ahead of System32 on PATH, or run $(dirname "$0")/patch-windows-hooks.sh (see https://github.com/Lumvale/amir-loop/blob/main/docs/windows-wsl-hooks.md)"
     else
       ok "host bash: no WSL bash.exe in System32, so a bare bash cannot resolve to WSL"
     fi

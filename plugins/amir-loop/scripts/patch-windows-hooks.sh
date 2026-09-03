@@ -10,7 +10,8 @@
 # never resolvable there and the hook cannot run. The plugin cannot choose the host's `bash`,
 # so this is an opt-in, per-host setup step rather than something the launcher can fix.
 #
-# See docs/windows-wsl-hooks.md and https://github.com/Lumvale/amir-loop/issues/30.
+# See https://github.com/Lumvale/amir-loop/blob/main/docs/windows-wsl-hooks.md
+# and https://github.com/Lumvale/amir-loop/issues/30.
 #
 # The rewritten command deliberately contains NO variables and NO spaces: a leading quoted
 # path is a PowerShell *parser* error, and some hosts run hook commands through PowerShell.
