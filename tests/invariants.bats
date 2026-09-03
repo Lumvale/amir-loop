@@ -520,13 +520,18 @@ EOF
   [[ "$output" != *'${CLAUDE_PLUGIN_ROOT}'* ]]
 }
 
-@test "generic hook launcher fails open when no plugin root is provided" {
+@test "generic hook launcher fails open, but loudly, when no plugin root is provided" {
+  # Fails OPEN on purpose: the core arms itself in every session, so a non-zero exit here
+  # would error on every turn of an unrelated project. It must not be SILENT, though --
+  # on Windows a bare bash is WSL, which strips variable references from a -c string, so the
+  # root is never resolvable and a silent skip made the hook undiagnosably inert (#30).
   local hooks="$BATS_TEST_DIRNAME/../plugins/amir-loop/hooks/hooks.json"
   local cmd
   cmd=$(jq -r '.hooks.Stop[0].hooks[0].command' "$hooks")
   run env CLAUDE_PLUGIN_ROOT= PLUGIN_ROOT= CODEX_PLUGIN_ROOT= bash -c "$cmd" </dev/null
   [ "$status" -eq 0 ]
-  [ -z "$output" ]
+  [[ "$output" == *"plugin root unresolved"* ]]
+  [[ "$output" == *"WSL"* ]]
 }
 
 @test "generic hook command reads the plugin root at runtime on Windows" {

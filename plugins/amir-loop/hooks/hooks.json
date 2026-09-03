@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -lc 'r=${CLAUDE_PLUGIN_ROOT:-}; [ x$r != x ] || r=${PLUGIN_ROOT:-}; [ x$r != x ] || r=${CODEX_PLUGIN_ROOT:-}; [ x$r != x ] || { echo amir-loop: plugin root unresolved - a bare bash on Windows is WSL which strips variable references from -c strings - name Git Bash explicitly - see Lumvale/amir-loop issue 30 >&2; exit 1; }; case x$r in x[A-Za-z]:*) r=$(cygpath -u \"$r\" 2>/dev/null) ;; esac; [ x$r != x ] || { echo amir-loop: plugin root unresolved - a bare bash on Windows is WSL which strips variable references from -c strings - name Git Bash explicitly - see Lumvale/amir-loop issue 30 >&2; exit 1; }; exec bash \"$r/hooks/amir-loop-stop.sh\" --observe=session.started'",
+            "command": "bash -lc 'r=${CLAUDE_PLUGIN_ROOT:-}; [ x$r != x ] || r=${PLUGIN_ROOT:-}; [ x$r != x ] || r=${CODEX_PLUGIN_ROOT:-}; [ x$r != x ] || { echo amir-loop: plugin root unresolved - a bare bash on Windows is WSL which strips variable references from -c strings - name Git Bash explicitly - see Lumvale/amir-loop issue 30 >&2; exit 0; }; case x$r in x[A-Za-z]:*) r=$(cygpath -u \"$r\" 2>/dev/null) ;; esac; [ x$r != x ] || { echo amir-loop: plugin root unresolved - a bare bash on Windows is WSL which strips variable references from -c strings - name Git Bash explicitly - see Lumvale/amir-loop issue 30 >&2; exit 0; }; exec bash \"$r/hooks/amir-loop-stop.sh\" --observe=session.started'",
             "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$env:PLUGIN_ROOT\\hooks\\amir-loop-stop.ps1\" -HookArgument \"--observe=session.started\"",
             "timeout": 10,
             "statusMessage": "Reconciling Amir Loop startup"
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -lc 'r=${CLAUDE_PLUGIN_ROOT:-}; [ x$r != x ] || r=${PLUGIN_ROOT:-}; [ x$r != x ] || r=${CODEX_PLUGIN_ROOT:-}; [ x$r != x ] || { echo amir-loop: plugin root unresolved - a bare bash on Windows is WSL which strips variable references from -c strings - name Git Bash explicitly - see Lumvale/amir-loop issue 30 >&2; exit 1; }; case x$r in x[A-Za-z]:*) r=$(cygpath -u \"$r\" 2>/dev/null) ;; esac; [ x$r != x ] || { echo amir-loop: plugin root unresolved - a bare bash on Windows is WSL which strips variable references from -c strings - name Git Bash explicitly - see Lumvale/amir-loop issue 30 >&2; exit 1; }; exec bash \"$r/hooks/amir-loop-stop.sh\" --observe=user-prompt'",
+            "command": "bash -lc 'r=${CLAUDE_PLUGIN_ROOT:-}; [ x$r != x ] || r=${PLUGIN_ROOT:-}; [ x$r != x ] || r=${CODEX_PLUGIN_ROOT:-}; [ x$r != x ] || { echo amir-loop: plugin root unresolved - a bare bash on Windows is WSL which strips variable references from -c strings - name Git Bash explicitly - see Lumvale/amir-loop issue 30 >&2; exit 0; }; case x$r in x[A-Za-z]:*) r=$(cygpath -u \"$r\" 2>/dev/null) ;; esac; [ x$r != x ] || { echo amir-loop: plugin root unresolved - a bare bash on Windows is WSL which strips variable references from -c strings - name Git Bash explicitly - see Lumvale/amir-loop issue 30 >&2; exit 0; }; exec bash \"$r/hooks/amir-loop-stop.sh\" --observe=user-prompt'",
             "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$env:PLUGIN_ROOT\\hooks\\amir-loop-stop.ps1\" -HookArgument \"--observe=user-prompt\"",
             "timeout": 10
           }
@@ -32,7 +32,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -lc 'r=${CLAUDE_PLUGIN_ROOT:-}; [ x$r != x ] || r=${PLUGIN_ROOT:-}; [ x$r != x ] || r=${CODEX_PLUGIN_ROOT:-}; [ x$r != x ] || { echo amir-loop: plugin root unresolved - a bare bash on Windows is WSL which strips variable references from -c strings - name Git Bash explicitly - see Lumvale/amir-loop issue 30 >&2; exit 1; }; case x$r in x[A-Za-z]:*) r=$(cygpath -u \"$r\" 2>/dev/null) ;; esac; [ x$r != x ] || { echo amir-loop: plugin root unresolved - a bare bash on Windows is WSL which strips variable references from -c strings - name Git Bash explicitly - see Lumvale/amir-loop issue 30 >&2; exit 1; }; exec bash \"$r/hooks/amir-loop-stop.sh\" --observe=post-tool'",
+            "command": "bash -lc 'r=${CLAUDE_PLUGIN_ROOT:-}; [ x$r != x ] || r=${PLUGIN_ROOT:-}; [ x$r != x ] || r=${CODEX_PLUGIN_ROOT:-}; [ x$r != x ] || { echo amir-loop: plugin root unresolved - a bare bash on Windows is WSL which strips variable references from -c strings - name Git Bash explicitly - see Lumvale/amir-loop issue 30 >&2; exit 0; }; case x$r in x[A-Za-z]:*) r=$(cygpath -u \"$r\" 2>/dev/null) ;; esac; [ x$r != x ] || { echo amir-loop: plugin root unresolved - a bare bash on Windows is WSL which strips variable references from -c strings - name Git Bash explicitly - see Lumvale/amir-loop issue 30 >&2; exit 0; }; exec bash \"$r/hooks/amir-loop-stop.sh\" --observe=post-tool'",
             "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$env:PLUGIN_ROOT\\hooks\\amir-loop-stop.ps1\" -HookArgument \"--observe=post-tool\"",
             "timeout": 10
           }
@@ -44,7 +44,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -lc 'r=${CLAUDE_PLUGIN_ROOT:-}; [ x$r != x ] || r=${PLUGIN_ROOT:-}; [ x$r != x ] || r=${CODEX_PLUGIN_ROOT:-}; [ x$r != x ] || { echo amir-loop: plugin root unresolved - a bare bash on Windows is WSL which strips variable references from -c strings - name Git Bash explicitly - see Lumvale/amir-loop issue 30 >&2; exit 1; }; case x$r in x[A-Za-z]:*) r=$(cygpath -u \"$r\" 2>/dev/null) ;; esac; [ x$r != x ] || { echo amir-loop: plugin root unresolved - a bare bash on Windows is WSL which strips variable references from -c strings - name Git Bash explicitly - see Lumvale/amir-loop issue 30 >&2; exit 1; }; exec bash \"$r/hooks/amir-loop-stop.sh\"'",
+            "command": "bash -lc 'r=${CLAUDE_PLUGIN_ROOT:-}; [ x$r != x ] || r=${PLUGIN_ROOT:-}; [ x$r != x ] || r=${CODEX_PLUGIN_ROOT:-}; [ x$r != x ] || { echo amir-loop: plugin root unresolved - a bare bash on Windows is WSL which strips variable references from -c strings - name Git Bash explicitly - see Lumvale/amir-loop issue 30 >&2; exit 0; }; case x$r in x[A-Za-z]:*) r=$(cygpath -u \"$r\" 2>/dev/null) ;; esac; [ x$r != x ] || { echo amir-loop: plugin root unresolved - a bare bash on Windows is WSL which strips variable references from -c strings - name Git Bash explicitly - see Lumvale/amir-loop issue 30 >&2; exit 0; }; exec bash \"$r/hooks/amir-loop-stop.sh\"'",
             "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$env:PLUGIN_ROOT\\hooks\\amir-loop-stop.ps1\"",
             "timeout": 30,
             "statusMessage": "Checking Amir Loop"
