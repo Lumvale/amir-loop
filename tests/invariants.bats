@@ -536,7 +536,21 @@ EOF
 
   # The braced form is substituted textually by the host, which would put raw Windows
   # backslashes back into the command. The root must be read from the environment.
-  [[ "$cmd" != *'${CLAUDE_PLUGIN_ROOT}'* ]]
+  #
+  # Matched on the OPENING brace, not the closed pair: `${CLAUDE_PLUGIN_ROOT:-}` is just as
+  # host-substituted as `${CLAUDE_PLUGIN_ROOT}`, and an earlier attempt at the quote-stripping
+  # fix reached for exactly that default-value form - which passed this assertion while
+  # reintroducing the bug it exists to prevent.
+  [[ "$cmd" != *'${CLAUDE_PLUGIN_ROOT'* ]]
+  [[ "$cmd" != *'${PLUGIN_ROOT'* ]]
+  [[ "$cmd" != *'${CODEX_PLUGIN_ROOT'* ]]
+
+  # The guard must survive a host that expands the command AND strips its inner quotes: with
+  # every root unset that turns `[ -n "$r" ]` into `[ -n ]` and `case $r in` into `case  in`,
+  # neither of which parses, so the intended silent exit 0 became a syntax error on every hook.
+  run env CLAUDE_PLUGIN_ROOT= PLUGIN_ROOT= CODEX_PLUGIN_ROOT= bash -c "${cmd//\"/}" </dev/null
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
 
   mkdir -p "$BATS_TEST_TMPDIR/root/hooks"
   cat > "$BATS_TEST_TMPDIR/root/hooks/amir-loop-stop.sh" <<'EOF'
