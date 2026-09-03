@@ -126,6 +126,20 @@ fi
 SH=$(to_host_path "$BASH_EXE")
 ROOT=$(to_host_path "$PLUGIN_ROOT")
 
+# `cygpath -ms` is not guaranteed to remove a space: 8.3 name creation can be disabled per
+# volume (`fsutil 8dot3name query`), and then it returns the long path unchanged. Writing that
+# would produce a command a PowerShell host cannot parse -- a leading quoted path is a parser
+# error there, so the space cannot be quoted away either. Fail closed rather than emit it.
+for _p in "$SH" "$ROOT"; do
+  case "$_p" in
+    *" "*)
+      echo "cannot render a space-free path for: $_p" >&2
+      echo "8.3 short names are probably disabled on this volume (check: fsutil 8dot3name query)." >&2
+      echo "Move the plugin, or pass --bash with a path that has no spaces." >&2
+      exit 3 ;;
+  esac
+done
+
 # Rebuild every launcher command, preserving its own --observe= event.
 NEW=$("$JQ" --arg sh "$SH" --arg root "$ROOT" '
   .hooks |= with_entries(
