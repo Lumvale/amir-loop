@@ -69,7 +69,7 @@ if [ -n "$_cand" ] && "$_cand" --version >/dev/null 2>&1; then
 elif command -v jq >/dev/null 2>&1; then
   JQ="jq"
 else
-  echo "jq not found (looked in plugins/amir-loop/vendor/jq and on PATH)" >&2
+  echo "jq not found (looked for a vendored binary in $_vendor and for jq on PATH)" >&2
   exit 3
 fi
 
