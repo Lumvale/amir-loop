@@ -44,10 +44,10 @@ commands_of() {
   run bash "$SCRIPT" --bash "$FAKE_BASH" "$TARGET"
   [ "$status" -eq 0 ]
 
-  # Assert the intent, not a literal filename: on Windows `cygpath -ms` rewrites the
-  # interpreter to its 8.3 short form (fake-bash.exe -> FAKE-B~1.EXE), so matching the name
-  # would pass on ubuntu/macos and fail only on windows -- green on two platforms for the
-  # wrong reason.
+  # Assert the intent, not a literal path: the rendering is platform-dependent (cygpath
+  # produces a drive-letter path on Windows, and shortens to 8.3 when a component contains
+  # a space), so pinning the exact string would pass on ubuntu/macos and fail on windows --
+  # green on two platforms for the wrong reason.
   while IFS= read -r cmd; do
     first=${cmd%% *}
     [[ "$cmd" != *"bash -lc"* ]]      || { echo "still shell-wrapped: $cmd"; return 1; }
@@ -57,6 +57,29 @@ commands_of() {
     [[ "$first" == /* || "$first" =~ ^[A-Za-z]:/ ]] || { echo "not absolute: $cmd"; return 1; }
     # And no spaces before the script argument, or a PowerShell host cannot parse it.
     [[ "$first" != *" "* ]]           || { echo "interpreter has a space: $cmd"; return 1; }
+  done < <(commands_of "$TARGET")
+}
+
+@test "an interpreter path containing a space is rendered without one" {
+  setup_target
+  spaced="$BATS_TEST_TMPDIR/fake bash.exe"
+  printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "$spaced"
+  chmod +x "$spaced"
+
+  run bash "$SCRIPT" --bash "$spaced" "$TARGET"
+  if [ "$status" -eq 3 ]; then
+    # No cygpath (a non-Windows host): refusing is the documented behaviour, because a
+    # leading quoted path is a PowerShell parser error and there is no other safe form.
+    [[ "$output" == *"contains a space"* ]]
+    return 0
+  fi
+  [ "$status" -eq 0 ]
+
+  # On Windows the space must be gone, or a PowerShell host cannot parse the command.
+  while IFS= read -r cmd; do
+    first=${cmd%% *}
+    [[ "$first" != *" "* ]] || { echo "space survived: $cmd"; return 1; }
+    [[ "$first" == *.[Ee][Xx][Ee] ]] || { echo "not the interpreter: $first"; return 1; }
   done < <(commands_of "$TARGET")
 }
 

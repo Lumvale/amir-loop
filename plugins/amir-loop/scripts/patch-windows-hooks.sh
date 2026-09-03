@@ -78,12 +78,35 @@ HOOKS_DIR=$(cd "$(dirname "$TARGET")" && pwd)
 PLUGIN_ROOT=$(cd "$HOOKS_DIR/.." && pwd)
 
 # Emit paths in a form both PowerShell and bash accept: forward slashes, no spaces.
+#
+# Shorten ONLY when the path actually contains a space. `cygpath -ms` shortens every
+# component it can, so an already-space-free path comes back mangled into 8.3 names
+# (.vscode/agent-plugins -> .vscode/AGENT-~1). That still works, but it makes the file
+# unreadable and, worse, makes --check report "needs patching" for a file that is already
+# functionally correct, because the comparison is textual. Found by running --check against
+# a correctly hand-patched file and getting a false positive.
 to_host_path() {
   if command -v cygpath >/dev/null 2>&1; then
-    cygpath -ms "$1"
-  else
-    printf '%s' "$1"
+    # Always ask cygpath for a mixed (drive-letter, forward-slash) path rather than trusting
+    # whatever form `pwd` returned: a POSIX /c/... root works under Git Bash but a
+    # PowerShell host cannot resolve it, and which form arrives here is not worth
+    # predicting. -m keeps the path readable; -ms additionally shortens it to 8.3, which is
+    # only needed when a component contains a space.
+    case "$1" in
+      *" "*) cygpath -ms "$1" ;;
+      *)     cygpath -m  "$1" ;;
+    esac
+    return
   fi
+  # No cygpath: not a Windows host, so a POSIX path is already correct. A space is still
+  # unrepresentable, because a leading quoted path is a PowerShell parser error and there is
+  # no other safe rendering -- say so rather than emit something broken.
+  case "$1" in
+    *" "*)
+      echo "path contains a space and cygpath is unavailable, so no space-free form can be produced: $1" >&2
+      exit 3 ;;
+    *) printf '%s' "${1//\\//}" ;;
+  esac
 }
 
 if [ -z "$BASH_EXE" ]; then
@@ -123,7 +146,11 @@ if [ "$NEW" = "$("$JQ" . "$TARGET")" ]; then
 fi
 
 if [ "$CHECK" -eq 1 ]; then
-  echo "needs patching: launchers in $TARGET do not point at $SH"
+  echo "needs patching: $TARGET"
+  echo "  launchers differ from the expected form:"
+  echo "    $SH $ROOT/hooks/amir-loop-stop.sh [--observe=<event>]"
+  echo "  current first launcher:"
+  echo "    $("$JQ" -r '[.hooks | to_entries[] | .value[] | .hooks[] | .command][0]' "$TARGET")"
   exit 1
 fi
 
