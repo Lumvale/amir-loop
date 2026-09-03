@@ -29,6 +29,31 @@ fail() { [ "$ACTION" = "print-jq" ] || printf 'FAIL: %s\n' "$*"; RC=1; }
 # --- bash ---
 ok "bash ${BASH_VERSION%%(*} at $(command -v bash)"
 
+# --- WSL risk for the bare `bash` the HOST resolves ---
+# The Claude/Copilot launcher is a bare `bash`, resolved from the *Windows* PATH by the host.
+# This script cannot observe that PATH: it is already inside Git Bash, whose PATH is
+# MSYS-translated and prepends /usr/bin (Git's own bash), which the host never sees. So
+# `command -v bash` above, and any walk of $PATH here, describe THIS shell and not the host.
+# Walking $PATH here reports Git's bash and reads as "all clear" on a machine where the host
+# demonstrably launches WSL -- a false green, which is worse than no check.
+#
+# Report the risk from a fact that is true of the host, and leave the one-line confirmation
+# to the user. If System32 has a bash.exe, it is WSL, and it precedes anything appended to
+# PATH. WSL strips variable references from a `-c` string before bash parses it, so the
+# plugin root is never resolvable there and every hook is inert. See #30.
+case "$(uname -s 2>/dev/null)" in
+  MINGW*|MSYS*|CYGWIN*)
+    if [ -e "${SYSTEMROOT:-/c/Windows}/System32/bash.exe" ] || [ -e "/c/Windows/System32/bash.exe" ]; then
+      # Name this installation's own copy of the setup script, not a repo-relative path:
+      # a Claude Code install ships only plugins/amir-loop, so "plugins/amir-loop/scripts/..."
+      # is a path the user cannot cd to.
+      warn "host bash: System32 ships a bash.exe (WSL) and precedes anything appended to PATH, so the host may launch WSL, where every hook is inert. Confirm in PowerShell with: (Get-Command bash -All | Select-Object -First 1).Source - if that prints System32, put Git for Windows' bin ahead of System32 on PATH, or run $(dirname "$0")/patch-windows-hooks.sh (see https://github.com/Lumvale/amir-loop/blob/main/docs/windows-wsl-hooks.md)"
+    else
+      ok "host bash: no WSL bash.exe in System32, so a bare bash cannot resolve to WSL"
+    fi
+    ;;
+esac
+
 # --- jq: vendored, then PATH ---
 _vendor="$(cd "$(dirname "$0")/.." && pwd)/vendor/jq"
 case "$(uname -s 2>/dev/null)" in

@@ -128,9 +128,27 @@ through every other host's native adapter or transcript shape.
 Claude and Copilot invoke `bash "${CLAUDE_PLUGIN_ROOT}/hooks/amir-loop-stop.sh"`, so
 `bash` must resolve on PATH for those hosts. On Windows this means the Git for Windows
 install directory's `bin` folder — typically under `Program Files\Git\bin` — needs to
-be on PATH. Codex uses the bundled PowerShell launcher instead; it locates Git Bash next
-to the active `git.exe`, avoiding accidental resolution to WSL's `bash.exe`. Run
-`/amir-loop-doctor` to check the Claude/Copilot path precisely.
+be on PATH, **ahead of `C:\Windows\System32`**. Codex uses the bundled PowerShell launcher
+instead; it locates Git Bash next to the active `git.exe`, avoiding accidental resolution to
+WSL's `bash.exe`. Run `/amir-loop-doctor` to check the Claude/Copilot path precisely.
+
+> **The ordering is not optional, and appending is the common mistake.** `System32` ships its
+> own `bash.exe` (WSL) and normally precedes anything you add, so *appending* `Git\bin` leaves
+> `bash` resolving to WSL:
+>
+> ```console
+> # after appending  C:\Program Files\Git\bin
+> > (Get-Command bash -All | Select-Object -First 1).Source
+> C:\Windows\system32\bash.exe
+> # after prepending C:\Program Files\Git\bin
+> C:\Program Files\Git\bin\bash.exe
+> ```
+>
+> Under WSL the hooks cannot work at all: WSL strips variable references from a `-c` string
+> before bash parses it, so the plugin root is never resolvable. If PATH order is not something
+> you can change, run `plugins/amir-loop/scripts/patch-windows-hooks.sh` to point the launchers at Git Bash
+> explicitly. See [docs/windows-wsl-hooks.md](docs/windows-wsl-hooks.md) and
+> [#30](https://github.com/Lumvale/amir-loop/issues/30).
 
 ## Commands
 

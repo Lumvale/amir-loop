@@ -16,6 +16,27 @@ setup() {
   echo "$output" | grep -qE '^ok: +bash'
 }
 
+@test "doctor flags the WSL risk on Windows and never reports a false all-clear" {
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) : ;;
+    *) skip "the bare-bash WSL risk is Windows-only" ;;
+  esac
+
+  run bash "$DOCTOR"
+  [ "$status" -eq 0 ]
+
+  # An earlier version of this check walked $PATH from inside Git Bash, where /usr/bin
+  # comes first, and so reported "not WSL" on a machine whose host demonstrably launched
+  # WSL. The property under test is that a present System32\bash.exe is never described
+  # as safe -- a false green here is worse than no check at all.
+  if [ -e "/c/Windows/System32/bash.exe" ]; then
+    echo "$output" | grep -qE '^warn: +host bash: .*WSL'
+    ! echo "$output" | grep -qE '^ok: +host bash: .*cannot resolve to WSL'
+  else
+    echo "$output" | grep -qE '^ok: +host bash:'
+  fi
+}
+
 @test "doctor warns when another host has a different hook copy" {
   copy="$HOME/.gemini/config/plugins/amir-loop/hooks/amir-loop-stop.sh"
   mkdir -p "$(dirname "$copy")"
