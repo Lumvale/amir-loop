@@ -74,6 +74,21 @@ else
   exit 3
 fi
 
+# Refuse a file of the wrong shape before touching it. The plugin ships TWO files named
+# hooks.json -- hooks/hooks.json (Claude/Copilot/Codex, with a top-level .hooks map) and
+# hooks.json (Antigravity-native, keyed by plugin name with no .hooks) -- so aiming at the
+# wrong one is a foreseeable mistake. Without this, jq fails with "null (null) has no keys",
+# which says nothing about what to do. The file survived that (set -e aborts before the
+# write, exit 5) but the message must not be jq's.
+if ! "$JQ" -e '(.hooks | type) == "object"' "$TARGET" >/dev/null 2>&1; then
+  echo "not a Claude/Copilot hooks manifest: $TARGET" >&2
+  echo "Expected a top-level \"hooks\" object mapping event names to hook groups." >&2
+  echo "The Antigravity manifest (plugins/amir-loop/hooks.json) has a different shape and" >&2
+  echo "already names its interpreter explicitly, so it never needs pinning. You probably" >&2
+  echo "want <plugin-root>/hooks/hooks.json." >&2
+  exit 2
+fi
+
 # The plugin root is the parent of the directory holding hooks.json.
 HOOKS_DIR=$(cd "$(dirname "$TARGET")" && pwd)
 PLUGIN_ROOT=$(cd "$HOOKS_DIR/.." && pwd)

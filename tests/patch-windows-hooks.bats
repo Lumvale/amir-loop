@@ -132,6 +132,22 @@ commands_of() {
   [ "$status" -eq 2 ]
 }
 
+@test "a manifest of the wrong shape is refused by name, not by a jq error" {
+  setup_target
+  # The plugin ships TWO files called hooks.json: hooks/hooks.json (a top-level .hooks map)
+  # and hooks.json (Antigravity-native, keyed by plugin name). Aiming at the wrong one is a
+  # foreseeable mistake, and it used to surface as jq's "null (null) has no keys".
+  wrong="$BATS_TEST_TMPDIR/root/hooks/antigravity.json"
+  cp "$BATS_TEST_DIRNAME/../plugins/amir-loop/hooks.json" "$wrong"
+  original=$(cat "$wrong")
+
+  run bash "$SCRIPT" --bash "$FAKE_BASH" "$wrong"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"not a Claude/Copilot hooks manifest"* ]]
+  [[ "$output" != *"has no keys"* ]]
+  [ "$original" = "$(cat "$wrong")" ]
+}
+
 @test "an unusable interpreter is refused rather than written into the file" {
   setup_target
   original=$(cat "$TARGET")
