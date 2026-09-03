@@ -29,18 +29,42 @@ load helper
   grep -qxF '/.gitignore' "$BATS_TEST_TMPDIR/.claude/.gitignore"
 }
 
-@test "the prefix rule covers every artefact the hook writes" {
-  # Derived from the hook's own assignments rather than a hand-kept list: a rule checked against a
-  # copy of the list it is supposed to cover proves only that I typed it twice.
+@test "the loop ignores its litter in .lumvaleos too, not only .claude" {
+  # The hook's own `mkdir -p` creates BOTH. `.lumvaleos/` receives `playbook-events.jsonl` (an
+  # outbox) and `.playbook-heartbeat`. Found the way the first four were: `git add -A` in this
+  # very change swept `.lumvaleos/playbook-events.jsonl` into the commit that was fixing the
+  # problem, and it had to be taken back out.
+  #
+  # `.lumvaleos/` is created by the OBSERVE path, not by a plain Stop, so it is pre-created here:
+  # the helper's contract is "tidy a directory that exists", and creating one just to drop an
+  # ignore file into it would be a worse change than the litter it prevents. This is the realistic
+  # state — any repo the loop has emitted an event from already has the directory.
+  mkdir -p "$BATS_TEST_TMPDIR/.lumvaleos"
   use_fixture claude-code.jsonl
   arm_state 1 10
   run run_hook
   [ "$status" -eq 0 ]
-  paths=$(grep -oE '"\$CWD/\.claude/[^"]+"' "$HOOK" | tr -d '"' | sed 's#^\$CWD/\.claude/##' | sort -u)
+  [ -f "$BATS_TEST_TMPDIR/.lumvaleos/.gitignore" ]
+  grep -qxF '/playbook-events.jsonl' "$BATS_TEST_TMPDIR/.lumvaleos/.gitignore"
+  grep -qxF '/.playbook-heartbeat' "$BATS_TEST_TMPDIR/.lumvaleos/.gitignore"
+  grep -qxF '/.gitignore' "$BATS_TEST_TMPDIR/.lumvaleos/.gitignore"
+}
+
+@test "the prefix rule covers every artefact the hook writes" {
+  # Derived from the hook's own assignments rather than a hand-kept list: a rule checked against a
+  # copy of the list it is supposed to cover proves only that I typed it twice. This scan is what
+  # found `amir-loop-off` and, once widened to `.lumvaleos/`, the two playbook files.
+  use_fixture claude-code.jsonl
+  arm_state 1 10
+  run run_hook
+  [ "$status" -eq 0 ]
+  paths=$(grep -oE '"\$CWD/\.(claude|lumvaleos)/[^"]+"' "$HOOK" \
+    | tr -d '"' | sed -E 's#^\$CWD/\.(claude|lumvaleos)/##' | sort -u)
   [ -n "$paths" ]
   for p in $paths; do
     case "$p" in
       .amir-loop-*|amir-loop.*.local.md|'$STATE_NAME') ;;
+      playbook-events.jsonl|.playbook-heartbeat) ;;
       # `amir-loop-off` is a KILL SWITCH, not litter: a file the USER creates to stop the loop
       # (see the hook's header). Ignoring it would be wrong in both directions — it is deliberate
       # intent, and a team may well want it committed to disable the loop for everyone. This scan

@@ -166,11 +166,20 @@ EXACT_OUTPUT_FILE="$CWD/.claude/.amir-loop-exact-output-$SESSION_KEY"
 # silently drop rules that are not ours. Only the lines below are the loop's to own, and each is
 # appended only when absent. Best-effort throughout — an unwritable or unreadable file costs the
 # tidiness, never the Stop hook, which must not fail a session over housekeeping.
+#
+# Takes the directory, then its rules. TWO directories need this, not one: the hook's own
+# `mkdir -p "$CWD/.claude" "$CWD/.lumvaleos"` creates both, and `.lumvaleos/` receives
+# `playbook-events.jsonl` (an outbox) and `.playbook-heartbeat`. That second directory was found
+# the way the first four artefacts were — `git add -A` in this very change swept
+# `.lumvaleos/playbook-events.jsonl` into the commit that was fixing the problem, and it had to be
+# taken back out. The list of places the loop litters is longer than anyone remembers, which is
+# the argument for prefix rules maintained by the loop rather than by hand.
 amir_loop_self_ignore() {
   _ai_dir="$1"
+  shift
   [ -d "$_ai_dir" ] || return 0
   _ai_file="$_ai_dir/.gitignore"
-  for _ai_rule in '/.gitignore' '/.amir-loop-*' '/amir-loop.*.local.md'; do
+  for _ai_rule in '/.gitignore' "$@"; do
     if [ -f "$_ai_file" ]; then
       grep -qxF "$_ai_rule" "$_ai_file" 2>/dev/null && continue
     fi
@@ -191,7 +200,8 @@ amir_loop_self_ignore() {
 # outbox. Payloads contain identifiers and classifications only, never prompt/tool bodies.
 if [ -n "$OBSERVE_EVENT" ]; then
   mkdir -p "$CWD/.claude" "$CWD/.lumvaleos" 2>/dev/null || exit 0
-  amir_loop_self_ignore "$CWD/.claude"
+  amir_loop_self_ignore "$CWD/.claude" '/.amir-loop-*' '/amir-loop.*.local.md'
+  amir_loop_self_ignore "$CWD/.lumvaleos" '/playbook-events.jsonl' '/.playbook-heartbeat'
   if [ "$OBSERVE_EVENT" = "user-prompt" ]; then
     prompt=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.prompt // empty' 2>/dev/null)
     if [ -z "$prompt" ] && [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
@@ -436,7 +446,8 @@ else
     ''|*[!0-9]*) DEADLINE="invalid" ;;
     *)
       mkdir -p "$CWD/.claude" 2>/dev/null || allow_stop
-      amir_loop_self_ignore "$CWD/.claude"
+      amir_loop_self_ignore "$CWD/.claude" '/.amir-loop-*' '/amir-loop.*.local.md'
+      amir_loop_self_ignore "$CWD/.lumvaleos" '/playbook-events.jsonl' '/.playbook-heartbeat'
       [ -f "$CAMPAIGN" ] || date -u +%s > "$CAMPAIGN" 2>/dev/null || allow_stop
       START=$(cat "$CAMPAIGN" 2>/dev/null)
       case "$START" in
@@ -511,7 +522,8 @@ fi
 
 if [ ! -f "$STATE" ]; then
   mkdir -p "$CWD/.claude" 2>/dev/null || allow_stop
-  amir_loop_self_ignore "$CWD/.claude"
+  amir_loop_self_ignore "$CWD/.claude" '/.amir-loop-*' '/amir-loop.*.local.md'
+  amir_loop_self_ignore "$CWD/.lumvaleos" '/playbook-events.jsonl' '/.playbook-heartbeat'
   {
     cat <<EOF
 ---
