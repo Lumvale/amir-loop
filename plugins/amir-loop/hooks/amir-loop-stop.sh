@@ -142,12 +142,56 @@ RETRY_FILE="$CWD/.claude/.amir-loop-retry-$SESSION"
 CLOSEOUT_FILE="$CWD/.claude/.amir-loop-closeout-$SESSION_KEY.json"
 EXACT_OUTPUT_FILE="$CWD/.claude/.amir-loop-exact-output-$SESSION_KEY"
 
+# The loop drops SEVEN files into `$CWD/.claude/`, in whatever repository it was run from.
+# None is repository content, and every one of them shows in `git status` until somebody adds an
+# ignore rule by hand — per repo, forever, one artefact at a time as each is discovered.
+#
+# Measured 2026-09-03 in `lumvale-os`: rules existed for `.amir-loop-campaign` and
+# `amir-loop.*.local.md` (the latter added only AFTER one was committed to `main` by a
+# `git add -A` that had no way to know it was scratch), and FOUR were uncovered —
+# `-done-`, `-retry-`, `-closeout-`, `-exact-output-`. Two stray `-done-` markers made
+# `git_provenance` report `dirty: True` on `lumvale-os-live`, the checkout the LumvaleOS MCP
+# server SERVES, so that engine's staleness disclosure fired on every CLI invocation and every
+# empty MCP answer — permanently, over ten bytes of loop scratch. A warning that is always on is
+# one nobody reads, which is the failure that disclosure exists to prevent.
+#
+# So the loop now ignores its own litter, in the directory it already owns and already writes to.
+# A `.claude/.gitignore` needs no path migration, invents no state-directory convention for a
+# PORTABLE plugin, and fixes every consumer repository — including the ones nobody has thought
+# about — instead of waiting for each to be discovered.
+#
+# It lists itself, so the fix does not become the next stray file.
+#
+# Merge, never clobber: a project may already keep a `.claude/.gitignore`, and replacing it would
+# silently drop rules that are not ours. Only the lines below are the loop's to own, and each is
+# appended only when absent. Best-effort throughout — an unwritable or unreadable file costs the
+# tidiness, never the Stop hook, which must not fail a session over housekeeping.
+amir_loop_self_ignore() {
+  _ai_dir="$1"
+  [ -d "$_ai_dir" ] || return 0
+  _ai_file="$_ai_dir/.gitignore"
+  for _ai_rule in '/.gitignore' '/.amir-loop-*' '/amir-loop.*.local.md'; do
+    if [ -f "$_ai_file" ]; then
+      grep -qxF "$_ai_rule" "$_ai_file" 2>/dev/null && continue
+    fi
+    # The redirection is inside a group whose stderr is already discarded. `printf ... >> "$f"
+    # 2>/dev/null` is NOT equivalent: redirections are applied left to right, so a failure to OPEN
+    # the target is reported before `2>/dev/null` takes effect. Caught by this change's own test —
+    # with the path made a directory, bash printed `Is a directory` and, because a Stop hook's
+    # caller parses stdout+stderr as one stream, that line prepended itself to the JSON and broke
+    # the parse. Housekeeping must never be able to corrupt the hook's contract.
+    { printf '%s\n' "$_ai_rule" >> "$_ai_file"; } 2>/dev/null || return 0
+  done
+  return 0
+}
+
 # Non-Stop lifecycle events use the same portable launcher. They are deliberately
 # best-effort: an emission failure can lose a hint, but may never corrupt or complete a
 # direct goal. LumvaleOS deduplicates these workspace-scoped facts when it reconciles the
 # outbox. Payloads contain identifiers and classifications only, never prompt/tool bodies.
 if [ -n "$OBSERVE_EVENT" ]; then
   mkdir -p "$CWD/.claude" "$CWD/.lumvaleos" 2>/dev/null || exit 0
+  amir_loop_self_ignore "$CWD/.claude"
   if [ "$OBSERVE_EVENT" = "user-prompt" ]; then
     prompt=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.prompt // empty' 2>/dev/null)
     if [ -z "$prompt" ] && [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
@@ -392,6 +436,7 @@ else
     ''|*[!0-9]*) DEADLINE="invalid" ;;
     *)
       mkdir -p "$CWD/.claude" 2>/dev/null || allow_stop
+      amir_loop_self_ignore "$CWD/.claude"
       [ -f "$CAMPAIGN" ] || date -u +%s > "$CAMPAIGN" 2>/dev/null || allow_stop
       START=$(cat "$CAMPAIGN" 2>/dev/null)
       case "$START" in
@@ -466,6 +511,7 @@ fi
 
 if [ ! -f "$STATE" ]; then
   mkdir -p "$CWD/.claude" 2>/dev/null || allow_stop
+  amir_loop_self_ignore "$CWD/.claude"
   {
     cat <<EOF
 ---
