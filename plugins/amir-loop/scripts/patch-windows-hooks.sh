@@ -146,11 +146,17 @@ if [ "$NEW" = "$("$JQ" . "$TARGET")" ]; then
 fi
 
 if [ "$CHECK" -eq 1 ]; then
-  echo "needs patching: $TARGET"
-  echo "  launchers differ from the expected form:"
-  echo "    $SH $ROOT/hooks/amir-loop-stop.sh [--observe=<event>]"
+  # Deliberately not phrased as "broken". The shipped `bash -lc` launcher is correct on any
+  # host that resolves `bash` to Git Bash, and patching such a host is pointless churn. This
+  # only reports that the launchers are not pinned to an explicit interpreter.
+  echo "not pinned to an explicit interpreter: $TARGET"
   echo "  current first launcher:"
   echo "    $("$JQ" -r '[.hooks | to_entries[] | .value[] | .hooks[] | .command][0]' "$TARGET")"
+  echo "  pinning would rewrite them to:"
+  echo "    $SH $ROOT/hooks/amir-loop-stop.sh [--observe=<event>]"
+  echo
+  echo "  Pin only if this host resolves a bare bash to WSL. Confirm in PowerShell with:"
+  echo "    (Get-Command bash -All | Select-Object -First 1).Source"
   exit 1
 fi
 

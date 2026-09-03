@@ -32,11 +32,17 @@ commands_of() {
   [[ "$output" == *"Usage: patch-windows-hooks.sh"* ]]
 }
 
-@test "--check reports that the shipped launchers need patching" {
+@test "--check reports the shipped launchers as unpinned, without calling them broken" {
   setup_target
   run bash "$SCRIPT" --check --bash "$FAKE_BASH" "$TARGET"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"needs patching"* ]]
+  [[ "$output" == *"not pinned to an explicit interpreter"* ]]
+
+  # The shipped launcher is correct on any host that resolves `bash` to Git Bash, so this
+  # must not read as a fault -- pinning a working host is pointless churn. It should say
+  # how to tell the difference instead.
+  [[ "$output" != *"broken"* ]]
+  [[ "$output" == *"Get-Command bash"* ]]
 }
 
 @test "patching rewrites every launcher to the named interpreter" {

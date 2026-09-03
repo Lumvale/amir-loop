@@ -30,6 +30,13 @@ as "the fix failed" when the fix was simply not loaded.
 The script is idempotent, writes a one-time backup beside the target, and preserves each hook's
 own `--observe=` event.
 
+> **Only pin a host that actually resolves to WSL.** `--check` reports whether the launchers are
+> pinned to an explicit interpreter, which is not the same as whether they work: the shipped
+> `bash -lc` form is correct on any host that resolves `bash` to Git Bash, and pinning such a host
+> is pointless churn that a plugin update will undo anyway. Different hosts on the same machine
+> can differ — one may run hooks fine while another launches WSL. Confirm per host with
+> `(Get-Command bash -All | Select-Object -First 1).Source`, or simply by whether the hooks work.
+
 > The file it patches is **vendored**: a plugin update overwrites it and the problem returns. That
 > is why this is a script with a `--check` mode rather than a documented hand-edit. Re-run it after
 > an update.
