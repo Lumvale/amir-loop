@@ -92,9 +92,15 @@ Two properties matter and are easy to lose when hand-editing:
 
 ## Note for CI
 
-GitHub's `windows-latest` runners have **no WSL**, so `bash` there is Git Bash and the shipped
-launcher passes. CI cannot reproduce this class of failure — it is specific to Windows hosts that
-have WSL installed.
+**CI cannot reproduce this class of failure**, so a green pipeline is not evidence that a Windows
+host will work. On GitHub's `windows-latest` runners the shipped `bash -lc` launcher passes:
+`tests/launcher.bats` resolves a Windows plugin root and reaches the hook script there, which it
+could not do if `bash` were WSL — WSL would have stripped the variable that carries the root.
+
+That is the whole of what CI establishes. It does not tell us *why* — whether those images have no
+WSL at all, or simply order PATH so Git Bash wins — and either way it says nothing about a
+developer's machine, where the resolution can differ per host on the same box. The failure is
+specific to a Windows host that resolves a bare `bash` to WSL, and only that host can confirm it.
 
 ## A note on absolute paths in this repo
 
