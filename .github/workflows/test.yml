@@ -20,7 +20,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install bats
         run: |
           git clone --depth 1 https://github.com/bats-core/bats-core /tmp/bats
