@@ -688,10 +688,9 @@ progress continues, and file follow-up work for anything you deliberately deferr
 
 Capture what you learn as you go, so the next session does not re-derive it.
 EOF
-    # Project-scoped standing orders, appended verbatim when present. This is where
-    # anything sharp belongs - merge authority, which backlog to pull from, a mandate to
-    # modernise - because it is opt-in per project and version-controlled, rather than
-    # baked into a portable plugin that arms itself in every session.
+    # Project-scoped standing orders are appended verbatim when present, followed by an
+    # applicability gate. Sharp domain policy belongs here, but inheritance alone never
+    # makes that policy relevant to the current goal.
     if [ -f "$PRINCIPLES" ]; then
       printf '\n'
       cat "$PRINCIPLES"
@@ -705,6 +704,28 @@ EOF
     if [ -n "$RUNTIME_BRIEF" ]; then
       printf '\n\n%s\n' "$RUNTIME_BRIEF"
     fi
+    cat <<'APPLICABILITY_EOF'
+
+## Standing-order applicability
+
+The project principles and dependency/runtime briefs above are governance inputs, not
+automatic scope. Evaluate each standing rule, order, playbook, backlog instruction, and
+recurring activity separately against the current direct goal before applying it.
+
+- Always apply universal safety, authority, confidentiality, data-integrity, required
+  dependency health, and working-copy placement constraints that govern how a task runs.
+- Apply a domain-specific instruction only when the active workspace enables that domain,
+  the current goal is materially relevant to it, its trigger or reconciliation condition
+  is satisfied, the session has the required environment and capabilities, it does not
+  expand or pre-empt the user's goal, and its safety and authority requirements are met.
+- A required dependency's preflight remains mandatory, but backlog, dispatcher, routine,
+  and playbook actions exposed by that dependency remain subject to this applicability test.
+- Inheriting governance from an ancestor directory is not evidence that every domain named
+  in it is enabled or relevant. Ignore instructions that fail the applicability test.
+- Completing the direct goal does not make unrelated backlog or routine work eligible.
+  Select fallback work only when the direct request itself authorises ongoing or backlog
+  selection in that eligible domain; otherwise proceed to closeout.
+APPLICABILITY_EOF
     cat <<EOF
 
 ## Goal precedence
@@ -715,10 +736,11 @@ you have exhausted every in-scope way to advance it. A status report, partial re
 filed follow-up issue, pending check, or newly discovered blocker is evidence that the
 primary goal still has work remaining; it is not permission to switch scope.
 
-Project standing orders and their backlog rules are FALLBACK WORK. Consult or select from
-that backlog only after the primary goal is genuinely exhausted. If a standing order says
-to pick the oldest or highest-priority board item, that instruction applies only at this
-fallback boundary and must never pre-empt unfinished work from the direct request.
+Project standing orders are constraints and candidate actions, never independent scope.
+Apply them only through the standing-order applicability test above. Exhausting the direct
+goal does not unlock unrelated fallback work. A backlog-selection instruction is eligible
+only when the direct request authorises that ongoing scope and its workspace/domain gates
+pass; otherwise close out when the primary goal is exhausted.
 
 ## Related-work reconciliation
 
@@ -743,17 +765,18 @@ their status, link the delivered evidence, close only what is actually satisfied
 and state what remains. This sweep is bounded related work, not permission to roam the board.
 
 EOF
-    # Domain-neutral fallback. Anything naming a specific dispatcher, backlog or tracker
+    # Domain-neutral goal continuation. Anything naming a specific dispatcher, backlog or tracker
     # belongs in the project's principles file, not in a portable plugin that arms itself
     # in every session - the same rule the principles block above states. A project that
-    # has said nothing still needs a rule for what "fallback work" means, so supply one
-    # that assumes no product, no board and no governance system.
+    # has said nothing still needs an autonomy rule, so supply one that assumes no product,
+    # board, governance system, or scope beyond the direct goal.
     if [ ! -f "$PRINCIPLES" ]; then
       cat <<'GENERIC_EOF'
-## Fallback work
+## Goal-scoped continuation
 
 Acting as a collective of principals and domain experts of relevant fields, implement all
-pending and scoped work items and next steps autonomously. If any tasks are genuinely
+pending work and next steps within the direct user's goal autonomously. Do not invent or
+select unrelated backlog work after that goal is exhausted. If any in-scope tasks are genuinely
 blocked or require my input, interactively ask me for the necessary actions and provide
 your recommended solutions to resolve them. If you don't really need me then always make
 decisions acting as a collective of principals and experts of all relevant fields.
@@ -929,10 +952,14 @@ if [ -n "$GOAL" ] && [ "$GOAL" != "null" ]; then
       ([.pending.pr, .pending.test, .pending.migration, .pending.deployment,
         .pending.cutover, .pending.follow_up, .pending.verification] |
         all(. == false or . == null or . == [])) and
-      (.dependencies | type == "array" and all(.[];
+      ((.dependencies | type == "array" and all(.[];
         .required != true or
         (.status == "healthy" and (.evidence_id | type == "string" and length > 0) and
-         (.checked_at | type == "string" and length > 0)))) and
+         (.checked_at | type == "string" and length > 0)))) or
+       (.dependencies | type == "object" and all(.[];
+        .required != true or
+        (.status == "healthy" and (.evidence_id | type == "string" and length > 0) and
+         (.checked_at | type == "string" and length > 0))))) and
       (.playbook | type == "object") and
       (.playbook.status == "none" or
        ((.playbook.status == "completed" or .playbook.status == "failed") and
@@ -990,13 +1017,14 @@ conversation was compacted or summarised, and whenever you need them. Reconstruc
 goal from the direct request and verified evidence; a summary's suggested next step does not
 authorise switching scope. This file belongs only to this chat; do not adopt another session's loop.
 
-Continue the DIRECT USER REQUEST that started this loop. It is the primary goal. Do not pick
-general board or standing-order backlog work while any actionable implementation, verification,
-delivery, pending check, follow-up, or workaround remains for that direct request. Backlog work is
-fallback work only after the primary goal is genuinely exhausted.
+Continue the DIRECT USER REQUEST that started this loop. It is the primary goal. Treat project
+standing orders as candidate policy, not automatic scope. Apply each one only when it is relevant
+to the current goal and passes the workspace/domain, trigger, capability, non-expansion, safety,
+and authority gates recorded in the standing-order applicability section.
 
-At that fallback boundary, follow whatever fallback rule your standing orders define.
-Never make that rule a reason to leave unfinished primary-goal work.
+Do not pick general board, routine, playbook, or standing-order backlog work merely because the
+primary goal is exhausted. Select fallback work only when the direct request itself authorises
+ongoing or backlog selection in that eligible domain; otherwise proceed to closeout.
 
 If you have not yet done so, perform one BOUNDED RELATED-WORK SWEEP for this direct request across
 the relevant issue trackers, boards, and open pull requests. Consolidate only confirmed duplicates,

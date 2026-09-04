@@ -201,17 +201,28 @@ Environment variables read by `hooks/amir-loop-stop.sh`:
 
 `.claude/amir-loop-principles.md` holds project-scoped standing orders (backlog to
 pull from, merge authority, definition of done) that get appended to every armed
-loop's prompt. It is resolved from the current working directory **upwards**, the
+loop's prompt as candidate policy, not automatic scope. It is resolved from the current working directory **upwards**, the
 same way `.gitignore` or `.editorconfig` is — so a single file at the root of a fleet
 of repositories covers every repo beneath it, without needing to be duplicated into
 each one. Run `/amir-loop-init` to scaffold one from `templates/principles/` when none
 exists yet; it will not touch a file that is already there.
 
-Standing orders are subordinate to the direct request that armed the loop. Their
-board/backlog rules become fallback work only after every actionable part of that
-direct request has been implemented, verified, and delivered or can no longer be
-advanced in scope. Filing a follow-up or reporting a partial result does not cross
-that boundary.
+Each standing instruction, including actions described by dependency/runtime briefs, is
+independently gated. Universal safety, authority, confidentiality, data-integrity,
+required dependency health, and working-copy placement constraints always govern
+execution. Domain-specific instructions apply only when the active workspace enables
+their domain, the current goal is materially relevant, their trigger is satisfied, the
+required environment and capabilities are available, execution does not expand or
+pre-empt the user's goal, and safety and authority requirements are met. Inheritance
+from an ancestor directory is not proof of domain relevance.
+
+A required dependency's health preflight remains mandatory. Backlog, dispatcher, routine,
+and playbook actions exposed by that dependency do not inherit that mandatory status; they
+must pass the same workspace and current-goal applicability test.
+
+Completing the direct goal does not unlock unrelated standing-order backlog, routine,
+or playbook work. Fallback selection is eligible only when the direct request itself
+authorises ongoing or backlog selection in that domain; otherwise the loop closes out.
 
 When `AMIR_LOOP_WORKSPACE_ROOT` or `WORKSPACE_ROOT` selects a valid LumvaleOS Workspace, its
 rendered `.lumvaleos/amir-loop-principles.md` takes precedence. Amir Loop does not continue an

@@ -74,11 +74,12 @@ load helper
   reason=$(echo "$output" | jq -r '.reason')
   echo "$reason" | grep -q "Re-read that file"
   echo "$reason" | grep -q "Continue the DIRECT USER REQUEST"
-  echo "$reason" | grep -q "fallback work only after the primary goal"
+  echo "$reason" | grep -q "merely because the"
+  echo "$reason" | grep -q "primary goal is exhausted"
   ! echo "$reason" | grep -q "Do the work."
 }
 
-@test "standing-order backlog is explicitly subordinate to the direct goal" {
+@test "standing orders are gated by workspace and current-goal relevance" {
   mkdir -p "$BATS_TEST_TMPDIR/fleet/.claude" "$BATS_TEST_TMPDIR/fleet/repo"
   echo "Pick the oldest board story immediately." \
     > "$BATS_TEST_TMPDIR/fleet/.claude/amir-loop-principles.md"
@@ -89,7 +90,19 @@ load helper
 
   state="$BATS_TEST_TMPDIR/fleet/repo/.claude/amir-loop.s1.local.md"
   grep -q "direct user request.*PRIMARY GOAL" "$state"
-  grep -q "backlog rules are FALLBACK WORK" "$state"
+  grep -q "## Standing-order applicability" "$state"
+  grep -q "governance inputs, not" "$state"
+  grep -q "automatic scope" "$state"
+  grep -q "active workspace enables that domain" "$state"
+  grep -q "current goal is materially relevant" "$state"
+  grep -q "trigger or reconciliation condition" "$state"
+  grep -q "required environment and capabilities" "$state"
+  grep -q "expand or pre-empt the user's goal" "$state"
+  grep -q "safety and authority requirements" "$state"
+  grep -q "ancestor directory is not evidence" "$state"
+  grep -q "required dependency's preflight remains mandatory" "$state"
+  grep -q "actions exposed by that dependency remain subject" "$state"
+  grep -q "does not unlock unrelated fallback work" "$state"
   principles_line=$(grep -n "Pick the oldest board story" "$state" | cut -d: -f1)
   precedence_line=$(grep -n "## Goal precedence" "$state" | cut -d: -f1)
   [ "$precedence_line" -gt "$principles_line" ]
@@ -142,6 +155,8 @@ EOF
   [ "$status" -eq 0 ]
   state="$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
   grep -q "The explicit prompt above is the PRIMARY GOAL" "$state"
+  grep -q "## Standing-order applicability" "$state"
+  grep -q "governance inputs, not" "$state"
   principles_line=$(grep -n "Pick the oldest board story" "$state" | cut -d: -f1)
   precedence_line=$(grep -n "## Goal precedence" "$state" | cut -d: -f1)
   [ "$precedence_line" -gt "$principles_line" ]
@@ -505,14 +520,16 @@ EOF
   echo "$reason" | grep -q "summary's suggested next step does not"
 }
 
-@test "continuation subordinates fallback work to the direct goal" {
+@test "continuation re-applies the standing-order relevance gate" {
   arm_state 2 10
   CODEX_LAST_ASSISTANT="work remains" run run_codex_hook
   [ "$status" -eq 0 ]
   reason=$(echo "$output" | jq -r '.reason')
-  echo "$reason" | grep -q 'fallback boundary'
-  echo "$reason" | grep -q 'follow whatever fallback rule your standing orders define'
-  echo "$reason" | grep -q 'Never make that rule a reason to'
+  echo "$reason" | grep -q 'candidate policy, not automatic scope'
+  echo "$reason" | grep -q 'workspace/domain, trigger, capability, non-expansion, safety'
+  echo "$reason" | grep -q 'merely because the'
+  echo "$reason" | grep -q 'primary goal is exhausted'
+  echo "$reason" | grep -q 'otherwise proceed to closeout'
 }
 
 @test "durable brief governs learning promotion without self modification" {
@@ -612,29 +629,31 @@ EOF
   ! grep -q 'next_due_playbook' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
 }
 
-@test "a project with no standing orders still gets a generic fallback rule" {
+@test "a project with no standing orders stays within the direct goal" {
   use_fixture vscode-copilot.jsonl
   run run_hook
   [ "$status" -eq 0 ]
-  grep -q '## Fallback work' "$TEST_STATE"
+  grep -q '## Goal-scoped continuation' "$TEST_STATE"
   grep -q 'collective of principals and domain experts' "$TEST_STATE"
+  grep -q 'Do not invent or' "$TEST_STATE"
+  grep -q 'select unrelated backlog work' "$TEST_STATE"
 }
 
-@test "standing orders replace the generic fallback rather than stacking with it" {
+@test "standing orders replace goal-scoped continuation rather than stacking with it" {
   mkdir -p "$BATS_TEST_TMPDIR/.claude"
   echo "PROJECT BACKLOG SENTINEL" > "$BATS_TEST_TMPDIR/.claude/amir-loop-principles.md"
   use_fixture vscode-copilot.jsonl
   run run_hook
   [ "$status" -eq 0 ]
   grep -q 'PROJECT BACKLOG SENTINEL' "$TEST_STATE"
-  ! grep -q '## Fallback work' "$TEST_STATE"
+  ! grep -q '## Goal-scoped continuation' "$TEST_STATE"
 }
 
-@test "manual setup applies the same fallback rule as the auto-armed hook" {
+@test "manual setup applies the same goal-scoped continuation as the auto-armed hook" {
   cd "$BATS_TEST_TMPDIR"
   run bash "$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-setup.sh" "Ship the thing"
   [ "$status" -eq 0 ]
-  grep -q '## Fallback work' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
+  grep -q '## Goal-scoped continuation' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
 
   rm -rf "$BATS_TEST_TMPDIR/.claude"
   mkdir -p "$BATS_TEST_TMPDIR/.claude"
@@ -642,5 +661,5 @@ EOF
   run bash "$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-setup.sh" "Ship the thing"
   [ "$status" -eq 0 ]
   grep -q 'PROJECT BACKLOG SENTINEL' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
-  ! grep -q '## Fallback work' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
+  ! grep -q '## Goal-scoped continuation' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
 }

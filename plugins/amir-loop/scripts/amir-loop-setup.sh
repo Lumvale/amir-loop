@@ -324,6 +324,28 @@ EOF
   if [ -n "$RUNTIME_BRIEF" ]; then
     printf '\n\n%s\n' "$RUNTIME_BRIEF"
   fi
+  cat <<'APPLICABILITY_EOF'
+
+## Standing-order applicability
+
+The project principles and dependency/runtime briefs above are governance inputs, not
+automatic scope. Evaluate each standing rule, order, playbook, backlog instruction, and
+recurring activity separately against the current direct goal before applying it.
+
+- Always apply universal safety, authority, confidentiality, data-integrity, required
+  dependency health, and working-copy placement constraints that govern how a task runs.
+- Apply a domain-specific instruction only when the active workspace enables that domain,
+  the current goal is materially relevant to it, its trigger or reconciliation condition
+  is satisfied, the session has the required environment and capabilities, it does not
+  expand or pre-empt the user's goal, and its safety and authority requirements are met.
+- A required dependency's preflight remains mandatory, but backlog, dispatcher, routine,
+  and playbook actions exposed by that dependency remain subject to this applicability test.
+- Inheriting governance from an ancestor directory is not evidence that every domain named
+  in it is enabled or relevant. Ignore instructions that fail the applicability test.
+- Completing the direct goal does not make unrelated backlog or routine work eligible.
+  Select fallback work only when the direct request itself authorises ongoing or backlog
+  selection in that eligible domain; otherwise proceed to closeout.
+APPLICABILITY_EOF
   cat <<EOF
 
 ## Goal precedence
@@ -334,9 +356,11 @@ exhausted. A status report, partial result, filed follow-up issue, pending check
 discovered blocker means this goal still has work remaining; it is not permission to
 switch scope.
 
-Project standing orders and their backlog rules are FALLBACK WORK. Consult or select from
-that backlog only after the primary goal is genuinely exhausted. An oldest-first or
-highest-priority rule must never pre-empt unfinished work from the explicit prompt.
+Project standing orders are constraints and candidate actions, never independent scope.
+Apply them only through the standing-order applicability test above. Exhausting the direct
+goal does not unlock unrelated fallback work. A backlog-selection instruction is eligible
+only when the direct request authorises that ongoing scope and its workspace/domain gates
+pass; otherwise close out when the primary goal is exhausted.
 
 ## Related-work reconciliation
 
@@ -360,17 +384,18 @@ link delivered evidence, and close only work that is actually satisfied and auth
 is bounded related work, not permission to roam the board.
 
 EOF
-  # Domain-neutral fallback. Anything naming a specific dispatcher, backlog or tracker
+  # Domain-neutral goal continuation. Anything naming a specific dispatcher, backlog or tracker
   # belongs in the project's principles file, not in a portable plugin that arms itself
   # in every session - the same rule the principles block above states. A project that
-  # has said nothing still needs a rule for what "fallback work" means, so supply one
-  # that assumes no product, no board and no governance system.
+  # has said nothing still needs an autonomy rule, so supply one that assumes no product,
+  # board, governance system, or scope beyond the direct goal.
   if [ ! -f "$PRINCIPLES" ]; then
     cat <<'GENERIC_EOF'
-## Fallback work
+## Goal-scoped continuation
 
 Acting as a collective of principals and domain experts of relevant fields, implement all
-pending and scoped work items and next steps autonomously. If any tasks are genuinely
+pending work and next steps within the direct user's goal autonomously. Do not invent or
+select unrelated backlog work after that goal is exhausted. If any in-scope tasks are genuinely
 blocked or require my input, interactively ask me for the necessary actions and provide
 your recommended solutions to resolve them. If you don't really need me then always make
 decisions acting as a collective of principals and experts of all relevant fields.
