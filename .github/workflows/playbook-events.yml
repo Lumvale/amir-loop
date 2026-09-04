@@ -22,6 +22,7 @@ jobs:
     # can never be assigned from. Measured 2026-09-01: 40+ minutes unassigned, while the same
     # change in the private repos ran and passed. Hosted minutes work fine here and always have.
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: classify
