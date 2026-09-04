@@ -8,17 +8,19 @@ description: Configure Amir Loop runtime dependency policy for LumvaleOS as requ
 Use this skill when the user asks Amir Loop to require, prefer, or disable LumvaleOS governance.
 
 1. Confirm the core `amir-loop` plugin is installed; this companion supplies policy, not a second Stop hook.
-2. Resolve `../../scripts/configure-lumvaleos.sh` from this skill directory and run it from
-   the intended Workspace root, or with `AMIR_LOOP_WORKSPACE_ROOT`/`WORKSPACE_ROOT` selecting it,
-   using `bash PATH MODE`, where MODE is `required`,
-   `preferred`, or `off` (default `required`). Claude hosts may equivalently use
-   `${CLAUDE_PLUGIN_ROOT}/scripts/configure-lumvaleos.sh`.
+2. Select the intended Workspace root with `AMIR_LOOP_WORKSPACE_ROOT` or the shared
+   `WORKSPACE_ROOT`, then run the platform-native entrypoint, where MODE is
+   `required`, `preferred`, or `off` (default `required`):
+   - Windows: resolve `../../scripts/configure-lumvaleos.ps1` from this skill directory and
+     invoke it with PowerShell and `-Mode MODE`. Do not invoke bare `bash`; it may resolve to WSL.
+   - POSIX: resolve `../../scripts/configure-lumvaleos.sh` and invoke it with Bash and `MODE`.
 3. Never overwrite an existing `.claude/amir-loop-dependencies.json`. Read it and make the smallest explicit edit instead.
-4. Resolve the intended LumvaleOS Workspace explicitly. Run `lumvaleos policy validate`, then
-   `lumvaleos policy render` for that Workspace. Do not copy another Workspace's generated files.
-5. Set `AMIR_LOOP_WORKSPACE_ROOT` (or the shared `WORKSPACE_ROOT`) in the host launcher to the
-   intended Workspace. Confirm `loop.policy.resolve` returns its Workspace id and effective hash.
-6. Run Amir Loop doctor and report the dependency policy, Workspace id, and policy hash.
+4. Run `lumvaleos policy validate`, then `lumvaleos policy render` for that Workspace. Do not
+   copy another Workspace's generated files.
+5. Set the same Workspace selector in the host launcher. Confirm `loop.policy.resolve` returns
+   its Workspace id and effective hash.
+6. Run the native `amir-loop-doctor` skill and report the dependency policy, Workspace id, and
+   policy hash.
 7. Explain that a new agent session or host restart is required to reload native instructions,
    MCP configuration, and changed hooks.
 

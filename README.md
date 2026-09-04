@@ -132,6 +132,14 @@ be on PATH, **ahead of `C:\Windows\System32`**. Codex uses the bundled PowerShel
 instead; it locates Git Bash next to the active `git.exe`, avoiding accidental resolution to
 WSL's `bash.exe`. Run `/amir-loop-doctor` to check the Claude/Copilot path precisely.
 
+The packaged Codex doctor skill uses `plugins/amir-loop/scripts/amir-loop-doctor.ps1` on
+Windows. That entrypoint selects Git for Windows Bash explicitly and refuses the System32/WSL
+shim, so diagnosis still starts when the host's PATH is ordered incorrectly. The
+`amir-loop-lumvaleos` companion likewise provides `configure-lumvaleos.ps1`; configuration does
+not need a shell merely to write its JSON policy. Restart the host or begin a new agent session
+after changing plugin policy or installation because hosts cache skills, MCP configuration and
+hook definitions.
+
 > **The ordering is not optional, and appending is the common mistake.** `System32` ships its
 > own `bash.exe` (WSL) and normally precedes anything you add, so *appending* `Git\bin` leaves
 > `bash` resolving to WSL:
