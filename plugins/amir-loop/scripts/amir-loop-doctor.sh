@@ -144,13 +144,33 @@ fi
 # --- runtime dependency policy ---
 if [ -z "$POLICY" ]; then
   ok "dependencies: no policy found (portable default: off)"
-elif "$JQ" -e '.version == 1 and (.dependencies | type == "array") and all(.dependencies[]; (.id | type == "string" and length > 0) and (.policy == "required" or .policy == "preferred" or .policy == "off"))' "$POLICY" >/dev/null 2>&1; then
+elif "$JQ" -e '.version == 1 and (.dependencies | type == "array") and all(.dependencies[]; (.id | type == "string" and length > 0) and (.policy == "required" or .policy == "preferred" or .policy == "off") and ((.fallback? == null) or (.id == "lumvaleos" and .fallback.kind == "governed-cli-mcp-bridge" and .fallback.entrypoint == "amir-loop-lumvaleos/scripts/lumvaleos-preflight" and .fallback.scope == "read-only-authoritative-preflight" and .fallback.attempts == 1)))' "$POLICY" >/dev/null 2>&1; then
   ok "dependencies: valid policy $POLICY"
-  while IFS=$'\t' read -r _id _policy; do
+  while IFS=$'\t' read -r _id _policy _fallback_kind _fallback_entrypoint; do
     ok "dependency $_id: $_policy"
-  done < <("$JQ" -r '.dependencies[] | [.id, .policy] | @tsv' "$POLICY")
+    if [ -n "$_fallback_kind" ]; then
+      ok "dependency $_id fallback transport: $_fallback_kind via $_fallback_entrypoint (native transport remains primary)"
+    fi
+  done < <("$JQ" -r '.dependencies[] | [.id, .policy, (.fallback.kind // ""), (.fallback.entrypoint // "")] | @tsv' "$POLICY" | tr -d '\r')
 else
   fail "dependencies: invalid policy $POLICY - expected version 1 and policies required, preferred, or off"
+fi
+
+_transport_receipt="${AMIR_LOOP_LUMVALEOS_TRANSPORT_RECEIPT:-}"
+if [ -z "$_transport_receipt" ] && [ -n "${_ws:-}" ]; then
+  _transport_receipt="$_ws/.lumvaleos/amir-loop-lumvaleos-transport.json"
+fi
+if [ -n "$_transport_receipt" ] && [ -f "$_transport_receipt" ]; then
+  _now_epoch=$(date -u +%s 2>/dev/null || date +%s)
+  if "$JQ" -e --argjson now "$_now_epoch" '.version == 1 and (.transport == "native-mcp" or .transport == "cli-mcp-bridge") and (.degraded | type == "boolean") and (.checked_at | type == "string" and length > 0) and (.expires_at_epoch | type == "number") and .expires_at_epoch > $now and (.workspace | type == "string" and length > 0)' "$_transport_receipt" >/dev/null 2>&1; then
+    _serving_transport=$("$JQ" -r '.transport' "$_transport_receipt")
+    _serving_degraded=$("$JQ" -r '.degraded' "$_transport_receipt")
+    _serving_workspace=$("$JQ" -r '.workspace' "$_transport_receipt")
+    ok "LumvaleOS serving transport: $_serving_transport degraded=$_serving_degraded workspace=$_serving_workspace"
+    [ "$_serving_transport" = "cli-mcp-bridge" ] && warn "LumvaleOS native MCP is not restored; restart the agent session after repairing host transport"
+  else
+    warn "LumvaleOS transport receipt is invalid or expired: $_transport_receipt"
+  fi
 fi
 
 # --- inference runtime profile ---

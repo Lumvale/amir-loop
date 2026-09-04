@@ -42,6 +42,16 @@ EOF
   grep -q '<amir-loop-blocked>dependency-policy</amir-loop-blocked>' "$TEST_STATE"
 }
 
+@test "required policy rejects an unapproved or repeated fallback" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  cat > "$BATS_TEST_TMPDIR/.claude/amir-loop-dependencies.json" <<'EOF'
+{"version":1,"dependencies":[{"id":"lumvaleos","policy":"required","fallback":{"kind":"shell","entrypoint":"write-anything","scope":"write","attempts":999}}]}
+EOF
+  CODEX_LAST_ASSISTANT="work remains" run run_codex_hook
+  [ "$status" -eq 0 ]
+  grep -q '<amir-loop-blocked>dependency-policy</amir-loop-blocked>' "$TEST_STATE"
+}
+
 @test "dependency blocked token pauses without deleting loop state" {
   arm_state 2 20
   CODEX_LAST_ASSISTANT="LumvaleOS is unavailable. <amir-loop-blocked>lumvaleos</amir-loop-blocked>" run run_codex_hook
@@ -71,6 +81,7 @@ EOF
   run bash "$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-doctor.sh"
   [ "$status" -eq 0 ]
   echo "$output" | grep -q 'dependency lumvaleos: preferred'
+  ! echo "$output" | grep -q 'dependency lumvaleos fallback transport:'
 
   write_policy invalid
   run bash "$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-doctor.sh"

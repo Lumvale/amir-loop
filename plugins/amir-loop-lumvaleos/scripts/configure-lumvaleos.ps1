@@ -54,4 +54,4 @@ finally {
     if ($writer) { $writer.Dispose() }
     elseif ($stream) { $stream.Dispose() }
 }
-Write-Output "Configured LumvaleOS as $Mode in $target. Validate and render this Workspace's agent policy, then start a new agent session so host tools and hooks reload."
+Write-Output "Configured LumvaleOS as $Mode in $target. Validate and render this Workspace's agent policy, then start a new agent session so host tools and hooks reload. The declared CLI MCP bridge is bounded continuity only; native MCP remains primary."

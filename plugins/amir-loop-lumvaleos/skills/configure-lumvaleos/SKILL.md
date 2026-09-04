@@ -25,9 +25,16 @@ Use this skill when the user asks Amir Loop to require, prefer, or disable Lumva
    MCP configuration, and changed hooks.
 
 In `required` mode, first call `loop.policy.resolve`, verify the Workspace id/hash, then call a
-LumvaleOS status or knowledge capability. If policy resolution or LumvaleOS is unavailable, do not
-begin substantive fleet work or silently replace its governed knowledge, flow, backlog, evidence,
-or capability authorization. Report the repair and emit
+LumvaleOS status or knowledge capability. If the native host returns a typed transport-closed or
+transport-unavailable error, normalize it to exact typed status `transport_closed` or
+`transport_unavailable`; never forward free-form host error text. Run
+`../../scripts/lumvaleos-preflight.ps1` on Windows or
+`../../scripts/lumvaleos-preflight.sh` on POSIX exactly once with the intended Workspace. This
+declared adapter invokes only the authoritative read-only MCP preflight through the LumvaleOS CLI.
+Proceed only for its compact `ok=true` result, and report `transport=cli-mcp-bridge` plus
+`degraded=true`; never describe that as native MCP success. If policy resolution and both governed
+transports are unavailable, do not begin substantive fleet work or silently replace its governed
+knowledge, flow, backlog, evidence, or capability authorization. Report the repair and emit
 `<amir-loop-blocked>lumvaleos</amir-loop-blocked>` so Amir Loop pauses without losing the primary
 goal. Ordinary repository inspection, builds, tests, and git operations remain native tools after
 the preflight succeeds.

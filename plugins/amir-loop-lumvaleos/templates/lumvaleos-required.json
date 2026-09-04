@@ -5,8 +5,14 @@
       "id": "lumvaleos",
       "kind": "mcp",
       "policy": "required",
-      "preflight": "Call loop.policy.resolve and confirm the returned Workspace id and policy hash match the intended Workspace before substantive governed work; then call a LumvaleOS status or knowledge capability and resolve standard-loop@v2. Only after the direct goal is exhausted and its scope authorises ongoing backlog work, call flow.next_due_playbook once and complete any returned lease with required evidence.",
-      "repair": "Select the intended WORKSPACE_ROOT, validate and render its agent policy, install or enable the LumvaleOS MCP for this host, restart the agent session, and retry the same goal. Do not inherit another Workspace's standing orders or replace LumvaleOS with an ungoverned tracker-only workflow."
+      "preflight": "Call loop.policy.resolve and confirm the returned Workspace id and policy hash match the intended Workspace before substantive governed work; then call a LumvaleOS status or knowledge capability and resolve standard-loop@v2. If and only if the native host returns typed status transport_closed or transport_unavailable, run the declared governed CLI MCP bridge once with the intended Workspace; never put free-form host errors in process arguments. Proceed only when its compact JSON result has ok=true; report transport=cli-mcp-bridge and degraded=true, and never record it as native MCP success. Only after the direct goal is exhausted and its scope authorises ongoing backlog work, call flow.next_due_playbook once and complete any returned lease with required evidence.",
+      "repair": "Select the intended WORKSPACE_ROOT, validate and render its agent policy, install or enable the LumvaleOS MCP for this host, and restart the agent session to restore native MCP. A verified governed CLI bridge preserves continuity but is not reconnection. Do not inherit another Workspace's standing orders or replace LumvaleOS with an ungoverned tracker-only workflow.",
+      "fallback": {
+        "kind": "governed-cli-mcp-bridge",
+        "entrypoint": "amir-loop-lumvaleos/scripts/lumvaleos-preflight",
+        "scope": "read-only-authoritative-preflight",
+        "attempts": 1
+      }
     }
   ]
 }
