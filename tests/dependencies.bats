@@ -90,6 +90,19 @@ EOF
   jq -e '.dependencies[0].policy == "preferred"' .claude/amir-loop-dependencies.json >/dev/null
 }
 
+@test "LumvaleOS companion writes policy into an explicitly selected Workspace" {
+  script="$BATS_TEST_DIRNAME/../plugins/amir-loop-lumvaleos/scripts/configure-lumvaleos.sh"
+  mkdir -p "$BATS_TEST_TMPDIR/ws"
+  echo "workspace: {id: ws-career}" > "$BATS_TEST_TMPDIR/ws/workspace.yaml"
+
+  AMIR_LOOP_WORKSPACE_ROOT="$BATS_TEST_TMPDIR/ws" run bash "$script" preferred
+
+  [ "$status" -eq 0 ]
+  jq -e '.dependencies[0].policy == "preferred"' \
+    "$BATS_TEST_TMPDIR/ws/.claude/amir-loop-dependencies.json" >/dev/null
+  [ ! -e "$BATS_TEST_TMPDIR/.claude/amir-loop-dependencies.json" ]
+}
+
 @test "manual setup renders the same dependency preflight contract" {
   write_policy required
   cd "$BATS_TEST_TMPDIR"

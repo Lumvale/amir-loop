@@ -1,0 +1,27 @@
+# LumvaleOS Workspace policy integration
+
+Amir Loop remains the portable owner of host lifecycle, bounded continuation, and verified
+closeout. LumvaleOS remains the owner of Workspace knowledge, instructions, capability policy,
+accounts, environments, leases, and evidence. The `amir-loop-lumvaleos` companion is the thin
+integration between them and registers no second Stop hook.
+
+Each LumvaleOS Workspace authors one versioned policy bundle. `lumvaleos policy render` publishes
+the effective standing orders to `.lumvaleos/amir-loop-principles.md`; its header includes the
+Workspace id and deterministic policy hash. Select it in the agent host with:
+
+```text
+AMIR_LOOP_WORKSPACE_ROOT=/path/to/ws-lumvale
+```
+
+`WORKSPACE_ROOT` is accepted when the same environment selects both LumvaleOS and Amir Loop.
+The selected directory must contain `workspace.yaml`. A selected Workspace never falls through to
+another ancestor's principles. If no Workspace is selected, the existing nearest-project lookup is
+retained for portable, non-Lumvale use and stops at the first `workspace.yaml` boundary.
+
+Rendered instruction text is snapshotted into the Amir Loop session state, so edits cannot silently
+change an active run. LumvaleOS capability allow, deny, and required-grant rules are evaluated live
+on every server call, so a revocation does not wait for a new loop.
+
+Workspace configuration can narrow behavior but cannot disable Amir Loop's bounds, direct-request
+priority, evidence-backed closeout, or LumvaleOS tenancy, authentication, audit, secret, production,
+and authority invariants.

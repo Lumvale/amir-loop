@@ -44,6 +44,18 @@ snapshot_claude() {
   echo "$output" | grep -q '^principles: none$'
 }
 
+@test "status reports the selected Workspace policy hash" {
+  mkdir -p "$BATS_TEST_TMPDIR/ws/.lumvaleos"
+  echo "workspace: {id: ws-people}" > "$BATS_TEST_TMPDIR/ws/workspace.yaml"
+  echo '<!-- lumvaleos-agent-policy: 1 workspace=ws-people hash=sha256:people -->' \
+    > "$BATS_TEST_TMPDIR/ws/.lumvaleos/amir-loop-principles.md"
+
+  AMIR_LOOP_WORKSPACE_ROOT="$BATS_TEST_TMPDIR/ws" run bash "$STATUS"
+
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q 'workspace=ws-people hash=sha256:people'
+}
+
 @test "status does not mutate .claude/ - idle case" {
   mkdir -p "$BATS_TEST_TMPDIR/.claude"
   echo "orders" > "$BATS_TEST_TMPDIR/.claude/amir-loop-principles.md"

@@ -113,20 +113,35 @@ if [ -f "$SETTINGS" ] && grep -q 'amir-loop-stop' "$SETTINGS" 2>/dev/null; then
   fail "amir-loop-stop.sh is registered in ~/.claude/settings.json AND shipped by the plugin - these are mutually exclusive"
 fi
 
-# --- principles resolution, CWD upwards ---
-_dir="$PWD"; FOUND=""
-while [ -n "$_dir" ]; do
-  [ -f "$_dir/.claude/amir-loop-principles.md" ] && { FOUND="$_dir/.claude/amir-loop-principles.md"; break; }
-  _p=$(dirname "$_dir"); [ "$_p" = "$_dir" ] && break; _dir="$_p"
-done
-[ -n "$FOUND" ] && ok "principles: $FOUND" || warn "principles: none found from $PWD upwards - the generic body will be used"
+# --- Workspace-bound policy, then portable ancestry fallback ---
+FOUND=""; POLICY=""; RUNTIME_PROFILE=""
+_ws="${AMIR_LOOP_WORKSPACE_ROOT:-${WORKSPACE_ROOT:-}}"
+case "$_ws" in [A-Za-z]:*) command -v cygpath >/dev/null 2>&1 && _ws=$(cygpath -u "$_ws") ;; esac
+if [ -n "$_ws" ] && [ -f "$_ws/workspace.yaml" ]; then
+  ok "Workspace policy root: $_ws"
+  [ -f "$_ws/.lumvaleos/amir-loop-principles.md" ] && FOUND="$_ws/.lumvaleos/amir-loop-principles.md"
+  [ -z "$FOUND" ] && [ -f "$_ws/.claude/amir-loop-principles.md" ] && FOUND="$_ws/.claude/amir-loop-principles.md"
+  [ -f "$_ws/.claude/amir-loop-dependencies.json" ] && POLICY="$_ws/.claude/amir-loop-dependencies.json"
+  [ -f "$_ws/.claude/amir-loop-runtime.json" ] && RUNTIME_PROFILE="$_ws/.claude/amir-loop-runtime.json"
+else
+  _dir="$PWD"
+  while [ -n "$_dir" ]; do
+    [ -z "$FOUND" ] && [ -f "$_dir/.claude/amir-loop-principles.md" ] && FOUND="$_dir/.claude/amir-loop-principles.md"
+    [ -z "$POLICY" ] && [ -f "$_dir/.claude/amir-loop-dependencies.json" ] && POLICY="$_dir/.claude/amir-loop-dependencies.json"
+    [ -z "$RUNTIME_PROFILE" ] && [ -f "$_dir/.claude/amir-loop-runtime.json" ] && RUNTIME_PROFILE="$_dir/.claude/amir-loop-runtime.json"
+    [ -f "$_dir/workspace.yaml" ] && break
+    _p=$(dirname "$_dir"); [ "$_p" = "$_dir" ] && break; _dir="$_p"
+  done
+fi
+if [ -n "$FOUND" ]; then
+  ok "principles: $FOUND"
+  _policy_marker=$(grep -m1 'lumvaleos-agent-policy:' "$FOUND" 2>/dev/null || true)
+  [ -n "$_policy_marker" ] && ok "policy provenance: $_policy_marker"
+else
+  warn "principles: none for the selected scope - use the generic body or run lumvaleos policy render"
+fi
 
-# --- runtime dependency policy, CWD upwards ---
-_dir="$PWD"; POLICY=""
-while [ -n "$_dir" ]; do
-  [ -f "$_dir/.claude/amir-loop-dependencies.json" ] && { POLICY="$_dir/.claude/amir-loop-dependencies.json"; break; }
-  _p=$(dirname "$_dir"); [ "$_p" = "$_dir" ] && break; _dir="$_p"
-done
+# --- runtime dependency policy ---
 if [ -z "$POLICY" ]; then
   ok "dependencies: no policy found (portable default: off)"
 elif "$JQ" -e '.version == 1 and (.dependencies | type == "array") and all(.dependencies[]; (.id | type == "string" and length > 0) and (.policy == "required" or .policy == "preferred" or .policy == "off"))' "$POLICY" >/dev/null 2>&1; then
@@ -138,12 +153,7 @@ else
   fail "dependencies: invalid policy $POLICY - expected version 1 and policies required, preferred, or off"
 fi
 
-# --- inference runtime profile, CWD upwards ---
-_dir="$PWD"; RUNTIME_PROFILE=""
-while [ -n "$_dir" ]; do
-  [ -f "$_dir/.claude/amir-loop-runtime.json" ] && { RUNTIME_PROFILE="$_dir/.claude/amir-loop-runtime.json"; break; }
-  _p=$(dirname "$_dir"); [ "$_p" = "$_dir" ] && break; _dir="$_p"
-done
+# --- inference runtime profile ---
 if [ -z "$RUNTIME_PROFILE" ]; then
   ok "runtime provider: no profile found (portable default: host-managed)"
 elif "$JQ" -e '
@@ -194,10 +204,9 @@ fi
 [ "${AMIR_LOOP_OFF:-0}" = "1" ] && warn "AMIR_LOOP_OFF=1 is set in this environment"
 
 # --- cross-host installation parity ---
-# The plugin version is intentionally stable at 1.0.0 while Codex cache-busts installs, so
-# comparing manifest versions cannot detect a stale VS Code or Claude copy. Compare the actual
-# shared hook fingerprint instead. Missing hosts are informational; a present-but-different copy
-# is actionable because that host will behave differently from the doctor being run now.
+# Marketplace versions identify releases, but development installs and host caches can still
+# diverge. Compare the actual shared hook fingerprint as well. Missing hosts are informational;
+# a present-but-different copy is actionable because that host behaves differently.
 BASE_HOOK="$(cd "$(dirname "$0")/.." && pwd)/hooks/amir-loop-stop.sh"
 BASE_SUM=$(cksum "$BASE_HOOK" 2>/dev/null | awk '{print $1 ":" $2}')
 HOST_COPIES=()

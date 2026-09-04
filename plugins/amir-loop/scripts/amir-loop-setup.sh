@@ -124,28 +124,44 @@ OFF=".claude/amir-loop-off"
 
 mkdir -p .claude 2>/dev/null || { echo "error: cannot create .claude here" >&2; exit 1; }
 
-# Same project-scoped standing orders the Stop hook appends, resolved the same way:
-# searched from CWD upwards, like .gitignore or .editorconfig. See amir-loop-stop.sh's
-# principles-resolution block for why this must climb rather than check CWD alone.
+# Same Workspace-bound/project standing orders the Stop hook appends, resolved the same way.
 PRINCIPLES=""
 DEPENDENCIES=""
 RUNTIME_PROFILE=""
-_dir="$PWD"
-while [ -n "$_dir" ]; do
-  if [ -z "$PRINCIPLES" ] && [ -f "$_dir/.claude/amir-loop-principles.md" ]; then
-    PRINCIPLES="$_dir/.claude/amir-loop-principles.md"
+POLICY_BRIEF=""
+_workspace_root="${AMIR_LOOP_WORKSPACE_ROOT:-${WORKSPACE_ROOT:-}}"
+case "$_workspace_root" in
+  [A-Za-z]:*) command -v cygpath >/dev/null 2>&1 && _workspace_root=$(cygpath -u "$_workspace_root") ;;
+esac
+if [ -n "$_workspace_root" ] && [ -f "$_workspace_root/workspace.yaml" ]; then
+  if [ -f "$_workspace_root/.lumvaleos/amir-loop-principles.md" ]; then
+    PRINCIPLES="$_workspace_root/.lumvaleos/amir-loop-principles.md"
+  elif [ -f "$_workspace_root/.claude/amir-loop-principles.md" ]; then
+    PRINCIPLES="$_workspace_root/.claude/amir-loop-principles.md"
+  else
+    POLICY_BRIEF="The selected LumvaleOS Workspace at $_workspace_root has no rendered Amir Loop policy. Do not inherit standing orders from an ancestor or another Workspace. Run LumvaleOS policy validation/rendering before governed fallback work."
   fi
-  if [ -z "$DEPENDENCIES" ] && [ -f "$_dir/.claude/amir-loop-dependencies.json" ]; then
-    DEPENDENCIES="$_dir/.claude/amir-loop-dependencies.json"
-  fi
-  if [ -z "$RUNTIME_PROFILE" ] && [ -f "$_dir/.claude/amir-loop-runtime.json" ]; then
-    RUNTIME_PROFILE="$_dir/.claude/amir-loop-runtime.json"
-  fi
-  [ -n "$PRINCIPLES" ] && [ -n "$DEPENDENCIES" ] && [ -n "$RUNTIME_PROFILE" ] && break
-  _parent=$(dirname "$_dir")
-  [ "$_parent" = "$_dir" ] && break
-  _dir="$_parent"
-done
+  [ -f "$_workspace_root/.claude/amir-loop-dependencies.json" ] && DEPENDENCIES="$_workspace_root/.claude/amir-loop-dependencies.json"
+  [ -f "$_workspace_root/.claude/amir-loop-runtime.json" ] && RUNTIME_PROFILE="$_workspace_root/.claude/amir-loop-runtime.json"
+else
+  _dir="$PWD"
+  while [ -n "$_dir" ]; do
+    if [ -z "$PRINCIPLES" ] && [ -f "$_dir/.claude/amir-loop-principles.md" ]; then
+      PRINCIPLES="$_dir/.claude/amir-loop-principles.md"
+    fi
+    if [ -z "$DEPENDENCIES" ] && [ -f "$_dir/.claude/amir-loop-dependencies.json" ]; then
+      DEPENDENCIES="$_dir/.claude/amir-loop-dependencies.json"
+    fi
+    if [ -z "$RUNTIME_PROFILE" ] && [ -f "$_dir/.claude/amir-loop-runtime.json" ]; then
+      RUNTIME_PROFILE="$_dir/.claude/amir-loop-runtime.json"
+    fi
+    [ -f "$_dir/workspace.yaml" ] && break
+    [ -n "$PRINCIPLES" ] && [ -n "$DEPENDENCIES" ] && [ -n "$RUNTIME_PROFILE" ] && break
+    _parent=$(dirname "$_dir")
+    [ "$_parent" = "$_dir" ] && break
+    _dir="$_parent"
+  done
+fi
 
 DEPENDENCY_BRIEF=""
 JQ=""
@@ -298,6 +314,9 @@ EOF
   if [ -f "$PRINCIPLES" ]; then
     printf '\n'
     cat "$PRINCIPLES"
+  fi
+  if [ -n "$POLICY_BRIEF" ]; then
+    printf '\n\n## Workspace policy status\n\n%s\n' "$POLICY_BRIEF"
   fi
   if [ -n "$DEPENDENCY_BRIEF" ]; then
     printf '\n\n%s\n' "$DEPENDENCY_BRIEF"

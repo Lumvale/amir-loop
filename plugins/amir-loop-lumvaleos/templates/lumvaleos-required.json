@@ -5,8 +5,8 @@
       "id": "lumvaleos",
       "kind": "mcp",
       "policy": "required",
-      "preflight": "Call a LumvaleOS status or knowledge capability and confirm it succeeds before substantive fleet work; then resolve standard-loop@v2. Only after the direct goal is exhausted, call flow.next_due_playbook once before generic backlog selection and complete any returned lease with required evidence.",
-      "repair": "Install or enable the LumvaleOS MCP for this host, restart the agent session, and retry the same goal. Do not replace it with an ungoverned tracker-only workflow."
+      "preflight": "Call loop.policy.resolve and confirm the returned Workspace id and policy hash match the intended Workspace before substantive governed work; then call a LumvaleOS status or knowledge capability and resolve standard-loop@v2. Only after the direct goal is exhausted and its scope authorises ongoing backlog work, call flow.next_due_playbook once and complete any returned lease with required evidence.",
+      "repair": "Select the intended WORKSPACE_ROOT, validate and render its agent policy, install or enable the LumvaleOS MCP for this host, restart the agent session, and retry the same goal. Do not inherit another Workspace's standing orders or replace LumvaleOS with an ungoverned tracker-only workflow."
     }
   ]
 }

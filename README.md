@@ -172,6 +172,7 @@ Environment variables read by `hooks/amir-loop-stop.sh`:
 | `AMIR_LOOP_OFF` | `0` | Set to `1` as a global kill switch — the hook always allows the stop. |
 | `AMIR_LOOP_AUTOARM` | `1` | Set to `0` to only continue a loop someone already started, never auto-arm a new one on a bare Stop. This is the posture used by the `~/.claude/settings.json` + `--claude-code` install shape, below. |
 | `AMIR_LOOP_PROVIDER` | unset | Optional provider activation signal for hosts that do not expose one in hook payloads. Set to `bedrock` only when the host itself is already configured to perform inference through Amazon Bedrock. |
+| `AMIR_LOOP_WORKSPACE_ROOT` | unset | Explicit LumvaleOS Workspace whose rendered `.lumvaleos/amir-loop-principles.md` governs this run. `WORKSPACE_ROOT` is the shared fallback. The root must contain `workspace.yaml`. |
 
 ### Principles file
 
@@ -188,6 +189,12 @@ board/backlog rules become fallback work only after every actionable part of tha
 direct request has been implemented, verified, and delivered or can no longer be
 advanced in scope. Filing a follow-up or reporting a partial result does not cross
 that boundary.
+
+When `AMIR_LOOP_WORKSPACE_ROOT` or `WORKSPACE_ROOT` selects a valid LumvaleOS Workspace, its
+rendered `.lumvaleos/amir-loop-principles.md` takes precedence. Amir Loop does not continue an
+ancestor search outside that Workspace. The rendered header records the Workspace id and effective
+policy hash in the session brief, while LumvaleOS re-evaluates capability authorization live on
+each server call. See [Workspace policy integration](docs/workspace-policy-integration.md).
 
 Loop state is isolated per host session as `.claude/amir-loop.<session>.local.md`.
 This prevents two chats rooted in the same workspace from inheriting or overwriting
