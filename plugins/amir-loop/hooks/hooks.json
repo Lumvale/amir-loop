@@ -26,9 +26,22 @@
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Shell|exec_command|apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -lc 'r=$CLAUDE_PLUGIN_ROOT; [ x$r != x ] || r=$PLUGIN_ROOT; [ x$r != x ] || r=$CODEX_PLUGIN_ROOT; [ x$r != x ] || exit 0; case x$r in x[A-Za-z]:*) r=$(cygpath -u \"$r\" 2>/dev/null) ;; esac; [ x$r != x ] || exit 0; exec bash \"$r/hooks/amir-loop-stop.sh\" --observe=pre-tool'",
+            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$env:PLUGIN_ROOT\\hooks\\amir-loop-stop.ps1\" -HookArgument \"--observe=pre-tool\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
-        "matcher": "Bash|apply_patch|Edit|Write|mcp__lumvaleos__lumvaleos_preflight|mcp__lumvaleos__knowledge_capture",
+        "matcher": "Bash|PowerShell|Shell|exec_command|apply_patch|Edit|Write|mcp__lumvaleos__lumvaleos_preflight|mcp__lumvaleos__knowledge_capture",
         "hooks": [
           {
             "type": "command",

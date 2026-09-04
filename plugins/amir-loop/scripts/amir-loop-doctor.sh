@@ -233,6 +233,38 @@ else
   [ "$_drift" = "0" ] && ok "cross-host parity: all discovered copies match"
 fi
 
+# --- prospective action provenance ---
+# Hooks can identify only what their host payload exposes.  Summarise the append-only, redacted
+# ledger and keep every missing host/model field explicit; retrospective inference belongs in an
+# incident investigation, never in a diagnostic that might be mistaken for proof.
+PROVENANCE_ROOT="${AMIR_LOOP_PROVENANCE_ROOT:-${AMIR_LOOP_WORKSPACE_ROOT:-${WORKSPACE_ROOT:-$PWD}}}"
+case "$PROVENANCE_ROOT" in [A-Za-z]:*) command -v cygpath >/dev/null 2>&1 && PROVENANCE_ROOT=$(cygpath -u "$PROVENANCE_ROOT") ;; esac
+PROVENANCE_LEDGER="$PROVENANCE_ROOT/.lumvaleos/agent-actions.jsonl"
+if [ ! -f "$PROVENANCE_LEDGER" ]; then
+  ok "action provenance: no ledger found ($PROVENANCE_LEDGER); only future hooked actions can be attributed"
+elif ! "$JQ" -s -e 'all(.[]; type == "object" and .schema_version == 1)' "$PROVENANCE_LEDGER" >/dev/null 2>&1; then
+  warn "action provenance: unreadable or invalid ledger $PROVENANCE_LEDGER - attribution unavailable"
+else
+  _events=$("$JQ" -s 'length' "$PROVENANCE_LEDGER")
+  ok "action provenance: $_events event(s) at $PROVENANCE_LEDGER"
+  while IFS=$'\t' read -r _h _m _n; do
+    ok "action provenance identity: host=$_h model=$_m count=$_n"
+  done < <("$JQ" -rs '
+    group_by([.host_surface // "unknown", .model // "unknown"])[] |
+    [.[0].host_surface // "unknown", .[0].model // "unknown", length] | @tsv
+  ' "$PROVENANCE_LEDGER")
+  _unknown_models=$("$JQ" -s '[.[] | select((.model // "unknown") == "unknown")] | length' "$PROVENANCE_LEDGER")
+  [ "$_unknown_models" -eq 0 ] || warn "action provenance: model identity unavailable for $_unknown_models event(s); reported as unknown"
+  while IFS=$'\t' read -r _at _h _m _session _turn _risk_target; do
+    warn "action provenance risk: $_at host=$_h model=$_m session=$_session turn=$_turn drive-root-path-materialization target=$_risk_target"
+  done < <("$JQ" -rs '
+    [.[] | select(.risk == "drive-root-path-materialization") |
+      [.observed_at, .host_surface, .model, .session_id, .turn_id,
+       (.materialized_targets | map(select(test("^[A-Za-z]:/c/"; "i"))) | first // "unknown")]] |
+    sort_by(.[0]) | reverse | .[:10][] | @tsv
+  ' "$PROVENANCE_LEDGER")
+fi
+
 # --- Codex notify hook ---
 # Codex runs `notify` as a host-level after-agent hook, independently of Amir Loop's
 # Stop hook. On Windows, an oversized command can fail before the loop gets control.
