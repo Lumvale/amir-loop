@@ -342,6 +342,86 @@ EOF
   [ ! -f "$BATS_TEST_TMPDIR/.claude/.amir-loop-closeout-s1.json" ]
 }
 
+external_blocker_json() {
+  jq -nc '{version:1,blocker_kind:"owner-only",blocker_id:"github-app-permission-50",exact_human_action:"Set the GitHub App Actions permission to Read and write and approve the installation update.",evidence_uri:"https://github.com/Lumvale/amir-loop/issues/50",resume_condition:"When the installation permission read-back reports Actions write access.",exhausted_agent_side_alternatives:["Verified the current permission through the GitHub API.","Confirmed the app owner must approve this permission change."],pending_ci:false,remaining_agent_actionable_work:false,actionable_items:[]}'
+}
+
+@test "valid external blocker suspends without completion and preserves resume" {
+  arm_state 2 10
+  marker="<amir-loop-external-blocker>$(external_blocker_json)</amir-loop-external-blocker>"
+  CODEX_LAST_ASSISTANT="$marker" run run_codex_hook
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.decision // empty')" = "" ]
+  [ "$(echo "$output" | jq -r '.systemMessage')" = "Amir Loop suspended | external blocker accepted: github-app-permission-50" ]
+  [ -f "$TEST_STATE" ]
+  grep -q '^iteration: 2$' "$TEST_STATE"
+  blocker_file="$BATS_TEST_TMPDIR/.claude/.amir-loop-external-blocker-s1.json"
+  [ "$(jq -r '.blocker_id' "$blocker_file")" = "github-app-permission-50" ]
+
+  CODEX_TURN_ID="turn-1" CODEX_LAST_ASSISTANT="$marker" run run_codex_hook
+  [ "$status" -eq 0 ]; [ -z "$output" ]
+
+  CODEX_TURN_ID="turn-2" CODEX_LAST_ASSISTANT="The owner action is now complete." run run_codex_hook
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+  grep -q '^iteration: 3$' "$TEST_STATE"
+}
+
+@test "external blocker rejects malformed JSON" {
+  arm_state 1 10
+  CODEX_LAST_ASSISTANT='<amir-loop-external-blocker>{bad json}</amir-loop-external-blocker>' run run_codex_hook
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+  echo "$output" | jq -r '.reason' | grep -q 'rejected: malformed JSON object'
+  [ -f "$TEST_STATE" ]
+}
+
+@test "external blocker rejects missing durable evidence" {
+  arm_state 1 10
+  blocker=$(external_blocker_json | jq -c 'del(.evidence_uri)')
+  CODEX_LAST_ASSISTANT="<amir-loop-external-blocker>$blocker</amir-loop-external-blocker>" run run_codex_hook
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+  echo "$output" | jq -r '.reason' | grep -q 'evidence_uri must be a durable https URI'
+}
+
+@test "external blocker rejects vague human action" {
+  arm_state 1 10
+  blocker=$(external_blocker_json | jq -c '.exact_human_action="Please help"')
+  CODEX_LAST_ASSISTANT="<amir-loop-external-blocker>$blocker</amir-loop-external-blocker>" run run_codex_hook
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+  echo "$output" | jq -r '.reason' | grep -q 'exact_human_action is missing or vague'
+}
+
+@test "external blocker rejects pending CI" {
+  arm_state 1 10
+  blocker=$(external_blocker_json | jq -c '.pending_ci=true')
+  CODEX_LAST_ASSISTANT="<amir-loop-external-blocker>$blocker</amir-loop-external-blocker>" run run_codex_hook
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+  echo "$output" | jq -r '.reason' | grep -q 'pending CI is an asynchronous evidence gate'
+}
+
+@test "external blocker rejects remaining agent actionable work" {
+  arm_state 1 10
+  blocker=$(external_blocker_json | jq -c '.remaining_agent_actionable_work=true | .actionable_items=["retry API read"]')
+  CODEX_LAST_ASSISTANT="<amir-loop-external-blocker>$blocker</amir-loop-external-blocker>" run run_codex_hook
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+  echo "$output" | jq -r '.reason' | grep -q 'remaining agent-actionable work must be exhausted'
+}
+
+@test "manual and automatic briefs document the external blocker contract" {
+  use_fixture vscode-copilot.jsonl
+  run run_hook
+  [ "$status" -eq 0 ]
+  grep -q 'amir-loop-external-blocker' "$TEST_STATE"
+  grep -q 'remaining_agent_actionable_work=false' "$TEST_STATE"
+
+  rm -rf "$BATS_TEST_TMPDIR/.claude"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-setup.sh" "Wait for an owner-only action"
+  [ "$status" -eq 0 ]
+  grep -q 'amir-loop-external-blocker' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
+  grep -q 'remaining_agent_actionable_work=false' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
+}
+
 @test "explicit exact-output user contract bypasses closeout ceremony" {
   arm_state 1 10
   jq -n --arg cwd "$BATS_TEST_TMPDIR" --arg prompt "Reply with exactly PASS ONE. Do not use tools." \
