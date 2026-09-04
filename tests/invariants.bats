@@ -520,6 +520,20 @@ EOF
   echo "$reason" | grep -q "summary's suggested next step does not"
 }
 
+@test "continuation treats hosted CI as a durable asynchronous evidence gate" {
+  arm_state 2 10
+  CODEX_LAST_ASSISTANT="work remains" run run_codex_hook
+  [ "$status" -eq 0 ]
+  reason=$(echo "$output" | jq -r '.reason')
+  [[ "$reason" == *"asynchronous evidence gate"* ]]
+  [[ "$reason" == *"durable reconciliation"* ]]
+  [[ "$reason" == *"enable auto-merge"* ]]
+  [[ "$reason" == *"Continue the next authorised actionable task"* ]]
+  [[ "$reason" == *"reject stale heads"* ]]
+  [[ "$reason" == *"Never bypass"*"required checks."* ]]
+  [[ "$reason" == *"does not authorise unrelated scope or completion"* ]]
+}
+
 @test "continuation re-applies the standing-order relevance gate" {
   arm_state 2 10
   CODEX_LAST_ASSISTANT="work remains" run run_codex_hook

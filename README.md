@@ -296,6 +296,15 @@ the agent to re-read its session-scoped state and reconstruct the direct primary
 verified evidence. A summary's suggested next step cannot silently promote fallback backlog
 work over unfinished direct work.
 
+Hosted CI is asynchronous once dispatched. If a durable heartbeat or lease can preserve the
+exact head or revision, required checks, terminal criteria, and follow-up actions, the agent
+self-reviews, pushes, creates or updates the pull request, enables auto-merge for the reviewed
+head when repository policy supports it, records the remaining obligation, and continues the
+next authorised actionable task instead of spending turns polling. Reconciliation remains
+fail-closed: stale heads are rejected, required checks
+cannot be bypassed, pending CI does not complete the goal, and notifications are reserved for
+terminal or materially actionable changes.
+
 ### Context-driven events and reconciliation
 
 Supported host lifecycle hooks append redacted, workspace-scoped CloudEvents for
