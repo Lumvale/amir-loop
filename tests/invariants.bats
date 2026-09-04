@@ -99,6 +99,38 @@ load helper
   grep -q "RELATED BUT DISTINCT" "$state"
 }
 
+@test "selected LumvaleOS Workspace policy wins and records its hash" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude" "$BATS_TEST_TMPDIR/ws/.lumvaleos"
+  echo "WRONG ANCESTOR POLICY" > "$BATS_TEST_TMPDIR/.claude/amir-loop-principles.md"
+  echo "workspace: {id: ws-lumvale}" > "$BATS_TEST_TMPDIR/ws/workspace.yaml"
+  cat > "$BATS_TEST_TMPDIR/ws/.lumvaleos/amir-loop-principles.md" <<'EOF'
+<!-- lumvaleos-agent-policy: 1 workspace=ws-lumvale hash=sha256:abc123 -->
+RIGHT WORKSPACE POLICY
+EOF
+  use_fixture vscode-copilot.jsonl
+
+  AMIR_LOOP_WORKSPACE_ROOT="$BATS_TEST_TMPDIR/ws" run run_hook
+
+  [ "$status" -eq 0 ]
+  grep -q 'RIGHT WORKSPACE POLICY' "$TEST_STATE"
+  grep -q 'workspace=ws-lumvale hash=sha256:abc123' "$TEST_STATE"
+  ! grep -q 'WRONG ANCESTOR POLICY' "$TEST_STATE"
+}
+
+@test "selected Workspace without a projection never inherits ancestor policy" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude" "$BATS_TEST_TMPDIR/ws"
+  echo "WRONG ANCESTOR POLICY" > "$BATS_TEST_TMPDIR/.claude/amir-loop-principles.md"
+  echo "workspace: {id: ws-home}" > "$BATS_TEST_TMPDIR/ws/workspace.yaml"
+  use_fixture vscode-copilot.jsonl
+
+  AMIR_LOOP_WORKSPACE_ROOT="$BATS_TEST_TMPDIR/ws" run run_hook
+
+  [ "$status" -eq 0 ]
+  grep -q '## Workspace policy status' "$TEST_STATE"
+  grep -q 'no rendered Amir Loop policy' "$TEST_STATE"
+  ! grep -q 'WRONG ANCESTOR POLICY' "$TEST_STATE"
+}
+
 @test "manual setup gives its explicit prompt precedence over standing orders" {
   setup_script="$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-setup.sh"
   mkdir -p "$BATS_TEST_TMPDIR/.claude"
@@ -520,18 +552,15 @@ EOF
   [[ "$output" != *'${CLAUDE_PLUGIN_ROOT}'* ]]
 }
 
-@test "generic hook launcher fails open, but loudly, when no plugin root is provided" {
-  # Fails OPEN on purpose: the core arms itself in every session, so a non-zero exit here
-  # would error on every turn of an unrelated project. It must not be SILENT, though --
-  # on Windows a bare bash is WSL, which strips variable references from a -c string, so the
-  # root is never resolvable and a silent skip made the hook undiagnosably inert (#30).
+@test "generic hook launcher fails open when no plugin root is provided" {
+  # Fails open on purpose: the core arms itself in every session, so a non-zero exit here
+  # would error on every turn of an unrelated project.
   local hooks="$BATS_TEST_DIRNAME/../plugins/amir-loop/hooks/hooks.json"
   local cmd
   cmd=$(jq -r '.hooks.Stop[0].hooks[0].command' "$hooks")
   run env CLAUDE_PLUGIN_ROOT= PLUGIN_ROOT= CODEX_PLUGIN_ROOT= bash -c "$cmd" </dev/null
   [ "$status" -eq 0 ]
-  [[ "$output" == *"plugin root unresolved"* ]]
-  [[ "$output" == *"WSL"* ]]
+  [ -z "$output" ]
 }
 
 @test "generic hook command reads the plugin root at runtime on Windows" {

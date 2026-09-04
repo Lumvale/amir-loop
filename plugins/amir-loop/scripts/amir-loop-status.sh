@@ -50,9 +50,24 @@ if [ -f "$C" ]; then
   esac
 fi
 [ -f "$PWD/.claude/amir-loop-off" ] && echo "kill switch: present"
-_dir="$PWD"
-while [ -n "$_dir" ]; do
-  [ -f "$_dir/.claude/amir-loop-principles.md" ] && { echo "principles: $_dir/.claude/amir-loop-principles.md"; break; }
-  _p=$(dirname "$_dir"); [ "$_p" = "$_dir" ] && { echo "principles: none"; break; }; _dir="$_p"
-done
+_ws="${AMIR_LOOP_WORKSPACE_ROOT:-${WORKSPACE_ROOT:-}}"
+case "$_ws" in [A-Za-z]:*) command -v cygpath >/dev/null 2>&1 && _ws=$(cygpath -u "$_ws") ;; esac
+if [ -n "$_ws" ] && [ -f "$_ws/workspace.yaml" ]; then
+  echo "workspace policy root: $_ws"
+  if [ -f "$_ws/.lumvaleos/amir-loop-principles.md" ]; then
+    echo "principles: $_ws/.lumvaleos/amir-loop-principles.md"
+    grep -m1 'lumvaleos-agent-policy:' "$_ws/.lumvaleos/amir-loop-principles.md" 2>/dev/null || true
+  elif [ -f "$_ws/.claude/amir-loop-principles.md" ]; then
+    echo "principles: $_ws/.claude/amir-loop-principles.md"
+  else
+    echo "principles: missing for selected Workspace (run lumvaleos policy render)"
+  fi
+else
+  _dir="$PWD"
+  while [ -n "$_dir" ]; do
+    [ -f "$_dir/.claude/amir-loop-principles.md" ] && { echo "principles: $_dir/.claude/amir-loop-principles.md"; break; }
+    [ -f "$_dir/workspace.yaml" ] && { echo "principles: none at Workspace boundary $_dir"; break; }
+    _p=$(dirname "$_dir"); [ "$_p" = "$_dir" ] && { echo "principles: none"; break; }; _dir="$_p"
+  done
+fi
 exit 0
