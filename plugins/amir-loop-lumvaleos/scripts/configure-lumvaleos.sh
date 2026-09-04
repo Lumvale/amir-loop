@@ -20,4 +20,4 @@ if [ -e "$TARGET" ]; then
   exit 1
 fi
 sed "s/\"policy\": \"required\"/\"policy\": \"$MODE\"/" "$ROOT/templates/lumvaleos-required.json" > "$TARGET"
-echo "Configured LumvaleOS as $MODE in $TARGET. Validate and render this Workspace's agent policy, then start a new agent session so host tools and hooks reload."
+echo "Configured LumvaleOS as $MODE in $TARGET. Validate and render this Workspace's agent policy, then start a new agent session so host tools and hooks reload. The declared CLI MCP bridge is bounded continuity only; native MCP remains primary."

@@ -344,6 +344,9 @@ EOF
   event=$(tail -n 1 "$BATS_TEST_TMPDIR/.lumvaleos/playbook-events.jsonl")
   [ "$(echo "$event" | jq -r '.type')" = "environment.reachable" ]
   [ "$(echo "$event" | jq -r '.data.secret // empty')" = "" ]
+  receipt="$BATS_TEST_TMPDIR/.lumvaleos/amir-loop-lumvaleos-transport.json"
+  [ "$(jq -r '.transport' "$receipt")" = native-mcp ]
+  [ "$(jq -r '.degraded' "$receipt")" = false ]
 }
 
 @test "successful knowledge capture emits learning discovered" {

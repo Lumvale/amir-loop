@@ -1,6 +1,6 @@
 {
   "name": "amir-loop-lumvaleos",
-  "version": "0.2.0",
-  "description": "Governed LumvaleOS dependency profile for Amir Loop",
+  "version": "0.3.0",
+  "description": "Governed LumvaleOS dependency profile with bounded native-to-CLI MCP continuity",
   "author": { "name": "Lumvale", "email": "amir@lumvale.com" }
 }

@@ -71,6 +71,36 @@ setup() {
   echo "$output" | grep -q 'dependencies: no policy found (portable default: off)'
 }
 
+@test "doctor reports a declared governed fallback as non-native transport" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  cp "$BATS_TEST_DIRNAME/../plugins/amir-loop-lumvaleos/templates/lumvaleos-required.json" \
+    "$BATS_TEST_TMPDIR/.claude/amir-loop-dependencies.json"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$DOCTOR"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q 'fallback transport: governed-cli-mcp-bridge'
+  echo "$output" | grep -q 'native transport remains primary'
+}
+
+@test "doctor rejects an unapproved fallback tuple" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  printf '%s\n' '{"version":1,"dependencies":[{"id":"lumvaleos","policy":"required","fallback":{"kind":"shell","entrypoint":"write-anything","scope":"write","attempts":999}}]}' > "$BATS_TEST_TMPDIR/.claude/amir-loop-dependencies.json"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$DOCTOR"
+  [ "$status" -eq 1 ]
+  echo "$output" | grep -q 'dependencies: invalid policy'
+}
+
+@test "doctor reports the transport that actually served preflight" {
+  mkdir -p "$BATS_TEST_TMPDIR/.lumvaleos"
+  printf '%s\n' '{"version":1,"transport":"cli-mcp-bridge","degraded":true,"checked_at":"2026-09-05T00:00:00Z","expires_at_epoch":4102444800,"workspace":"ws-test","evidence":{"attempts":1}}' > "$BATS_TEST_TMPDIR/.lumvaleos/amir-loop-lumvaleos-transport.json"
+  cd "$BATS_TEST_TMPDIR"
+  AMIR_LOOP_LUMVALEOS_TRANSPORT_RECEIPT="$BATS_TEST_TMPDIR/.lumvaleos/amir-loop-lumvaleos-transport.json" run bash "$DOCTOR"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q 'serving transport: cli-mcp-bridge degraded=true'
+  echo "$output" | grep -q 'native MCP is not restored'
+}
+
 @test "doctor validates a Bedrock runtime profile without exposing credentials" {
   mkdir -p "$BATS_TEST_TMPDIR/.claude"
   cp "$BATS_TEST_DIRNAME/../templates/runtime/bedrock.json" "$BATS_TEST_TMPDIR/.claude/amir-loop-runtime.json"

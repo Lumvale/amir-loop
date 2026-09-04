@@ -1,7 +1,7 @@
 {
   "name": "amir-loop-lumvaleos",
-  "version": "0.1.0+codex.20260904120359",
-  "description": "Adds the governed LumvaleOS dependency profile to Amir Loop projects.",
+  "version": "0.3.0+codex.20260905002000",
+  "description": "Adds governed LumvaleOS dependency policy and bounded native-to-CLI MCP continuity to Amir Loop projects.",
   "author": {
     "name": "Lumvale",
     "email": "amir@lumvale.com",
@@ -11,7 +11,7 @@
   "interface": {
     "displayName": "Amir Loop Lumvaleos",
     "shortDescription": "Require LumvaleOS governance in Amir Loop",
-    "longDescription": "Configures Amir Loop to preflight LumvaleOS and fail closed for governed Lumvale fleet work while preserving a safe resumable blocked state.",
+    "longDescription": "Configures Amir Loop to preflight LumvaleOS, use a verified read-only CLI MCP bridge only after typed native transport failure, and otherwise fail closed with a safe resumable blocked state.",
     "developerName": "Lumvale",
     "category": "Productivity",
     "capabilities": [

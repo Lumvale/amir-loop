@@ -329,6 +329,22 @@ if [ -n "$OBSERVE_EVENT" ]; then
           map(select(. == "ok" or . == "healthy")) | length' 2>/dev/null)
         [ "${preflight_ok:-0}" -gt 0 ] || exit 0
         event_type="environment.reachable"
+        _receipt_root="${AMIR_LOOP_WORKSPACE_ROOT:-${WORKSPACE_ROOT:-$CWD}}"
+        case "$_receipt_root" in
+          [A-Za-z]:*) command -v cygpath >/dev/null 2>&1 && _receipt_root=$(cygpath -u "$_receipt_root") ;;
+        esac
+        if [ -d "$_receipt_root" ]; then
+          mkdir -p "$_receipt_root/.lumvaleos" 2>/dev/null || true
+          _receipt="$_receipt_root/.lumvaleos/amir-loop-lumvaleos-transport.json"
+          _receipt_tmp="${_receipt}.tmp.$$"
+          _checked_epoch=$(date -u +%s 2>/dev/null || date +%s)
+          _expires_epoch=$((_checked_epoch + 900))
+          _session_id=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.session_id // "unknown"' 2>/dev/null)
+          "$JQ" -nc --arg checked_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg workspace "$_receipt_root" --arg session_id "$_session_id" --argjson expires_at_epoch "$_expires_epoch" \
+            '{version:1,transport:"native-mcp",degraded:false,checked_at:$checked_at,expires_at_epoch:$expires_at_epoch,workspace:$workspace,session_id:$session_id,evidence:{source:"post-tool-observer"}}' \
+            > "$_receipt_tmp" 2>/dev/null && mv "$_receipt_tmp" "$_receipt" 2>/dev/null || rm -f "$_receipt_tmp" 2>/dev/null
+        fi
         ;;
       mcp__lumvaleos__knowledge_capture)
         capture_error=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '[.. | objects | .isError? // empty] | any' 2>/dev/null)
@@ -441,7 +457,13 @@ if [ -n "$DEPENDENCIES" ]; then
       (.policy == "required" or .policy == "preferred" or .policy == "off") and
       ((.kind // "tool") | type == "string") and
       ((.preflight // "") | type == "string") and
-      ((.repair // "") | type == "string"))
+      ((.repair // "") | type == "string") and
+      ((.fallback? == null) or
+       (.id == "lumvaleos" and
+        .fallback.kind == "governed-cli-mcp-bridge" and
+        .fallback.entrypoint == "amir-loop-lumvaleos/scripts/lumvaleos-preflight" and
+        .fallback.scope == "read-only-authoritative-preflight" and
+        .fallback.attempts == 1)))
   ' "$DEPENDENCIES" >/dev/null 2>&1; then
     DEPENDENCY_BRIEF=$("$JQ" -r '
       ["## Runtime dependency policy",
@@ -452,10 +474,17 @@ if [ -n "$DEPENDENCIES" ]; then
        (.dependencies[] | select(.policy != "off") |
          "- " + .id + " (" + (.kind // "tool") + ", " + .policy + "): " +
          (.preflight // "probe that the capability is callable") +
+         (if (.fallback.kind // "") == "" then "" else
+            " Declared fallback: " + .fallback.kind + " via " +
+            (.fallback.entrypoint // "unspecified") + "; scope=" +
+            (.fallback.scope // "unspecified") + "; attempts=" +
+            ((.fallback.attempts // 1) | tostring) + "." end) +
          (if (.repair // "") == "" then "" else " Repair: " + .repair end)),
        "",
        "Policy semantics:",
-       "- required: if its preflight fails, do not substitute an ungoverned path or begin",
+       "- required: a declared fallback qualifies only when its own verifier succeeds and",
+       "  reports its transport honestly. If native and declared fallback preflights fail, do",
+       "  not substitute an ungoverned path or begin",
        "  substantive work. Report the failure and repair, then output",
        "  <amir-loop-blocked>DEPENDENCY_ID</amir-loop-blocked>. This pauses the loop safely",
        "  without declaring the goal complete; a later human turn can resume it.",
