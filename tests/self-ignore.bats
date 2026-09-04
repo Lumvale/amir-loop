@@ -46,6 +46,7 @@ load helper
   [ "$status" -eq 0 ]
   [ -f "$BATS_TEST_TMPDIR/.lumvaleos/.gitignore" ]
   grep -qxF '/playbook-events.jsonl' "$BATS_TEST_TMPDIR/.lumvaleos/.gitignore"
+  grep -qxF '/agent-actions.jsonl' "$BATS_TEST_TMPDIR/.lumvaleos/.gitignore"
   grep -qxF '/.playbook-heartbeat' "$BATS_TEST_TMPDIR/.lumvaleos/.gitignore"
   grep -qxF '/.gitignore' "$BATS_TEST_TMPDIR/.lumvaleos/.gitignore"
 }
@@ -64,7 +65,7 @@ load helper
   for p in $paths; do
     case "$p" in
       .amir-loop-*|amir-loop.*.local.md|'$STATE_NAME') ;;
-      playbook-events.jsonl|.playbook-heartbeat) ;;
+      playbook-events.jsonl|agent-actions.jsonl|.playbook-heartbeat) ;;
       # `amir-loop-off` is a KILL SWITCH, not litter: a file the USER creates to stop the loop
       # (see the hook's header). Ignoring it would be wrong in both directions — it is deliberate
       # intent, and a team may well want it committed to disable the loop for everyone. This scan

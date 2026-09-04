@@ -141,6 +141,94 @@ MARKER="$CWD/.claude/.amir-loop-done-$SESSION"
 RETRY_FILE="$CWD/.claude/.amir-loop-retry-$SESSION"
 CLOSEOUT_FILE="$CWD/.claude/.amir-loop-closeout-$SESSION_KEY.json"
 EXACT_OUTPUT_FILE="$CWD/.claude/.amir-loop-exact-output-$SESSION_KEY"
+ACTION_LEDGER="$CWD/.lumvaleos/agent-actions.jsonl"
+
+# Prospective attribution is captured at the host hook boundary, where session and tool
+# identity still exist.  The ledger deliberately stores a command fingerprint and path-shaped
+# arguments, never the raw command/prompt/output.  Hosts do not all expose model identity; an
+# explicit `unknown` is evidence, while guessing from a product name would be fiction.
+record_action_provenance() {
+  _phase="$1"
+  _tool=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.tool_name // .toolName // .tool // "unknown"' 2>/dev/null)
+  _host=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.host_surface // .host // .client_name // .client // empty' 2>/dev/null)
+  _model=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.model // .model_id // .modelId // .agent.model // .metadata.model // empty' 2>/dev/null)
+  if [ -z "$_host" ]; then
+    case "$TRANSCRIPT" in
+      *copilot-chat*|*copilot_chat*) _host="vscode-copilot" ;;
+      *claude*|*Claude*) _host="claude-code" ;;
+      *gemini*|*Gemini*) _host="google-antigravity" ;;
+      *) [ -n "$TURN_ID" ] && [ -n "$LAST_ASSISTANT" ] && _host="codex" ;;
+    esac
+  fi
+  [ -n "$_host" ] || _host="unknown"
+  [ -n "$_model" ] || _model="unknown"
+
+  _command=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '
+    .tool_input.command // .tool_input.cmd // .toolInput.command //
+    .input.command // .input.cmd // empty' 2>/dev/null)
+  if [ -n "$_command" ]; then
+    _command_sum=$(printf '%s' "$_command" | sha256sum 2>/dev/null | cut -d' ' -f1)
+    [ -n "$_command_sum" ] && _command_sum="sha256:$_command_sum"
+  else
+    _command_sum="unknown"
+  fi
+  [ -n "$_command_sum" ] || _command_sum="unknown"
+
+  _semantics="native"
+  printf '%s' "$_command" | grep -Eq '(^|[;&[:space:]])(export[[:space:]]+)?MSYS_NO_PATHCONV=1([;&[:space:]]|$)' && \
+    _semantics="msys-no-path-conversion"
+  _declared=$(printf '%s' "$HOOK_INPUT" | "$JQ" -c '
+    (.tool_input // .toolInput // .input // {}) as $i |
+    [ $i.path?, $i.file_path?, $i.filePath?, $i.workdir?, $i.cwd?, $i.root?, $i.target?,
+      (($i.command // $i.cmd // "") |
+        scan("(?:[A-Za-z]:[\\\\/][^\\s\\\"]+|/[A-Za-z]/[^\\s\\\"]+)") |
+        gsub("[;,)]+$"; "")) ] |
+    map(select(type == "string" and length > 0)) | unique' 2>/dev/null)
+  case "$_declared" in ''|null) _declared='[]' ;; esac
+  _materialized=$("$JQ" -nc --argjson paths "$_declared" --arg semantics "$_semantics" '
+    $paths | map(
+      if $semantics == "msys-no-path-conversion" and test("^/[A-Za-z]/")
+      then "C:" + .
+      elif test("^/[A-Za-z]/")
+      then (.[1:2] | ascii_upcase) + ":/" + .[3:]
+      else gsub("\\\\"; "/") end) | unique' 2>/dev/null)
+  case "$_materialized" in ''|null) _materialized='[]' ;; esac
+  _risk=$(printf '%s' "$_materialized" | "$JQ" -r '
+    if any(.[]; test("^[A-Za-z]:/c/"; "i")) then "drive-root-path-materialization"
+    else "none" end' 2>/dev/null)
+  [ -n "$_risk" ] || _risk="unknown"
+  if [ "$_host" != "unknown" ] && [ "$_model" != "unknown" ]; then
+    _quality="host-and-model"
+  else
+    _quality="partial"
+  fi
+  _outcome=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '
+    [.. | objects | (.exit_code? // .exitCode? // empty)] | first // empty' 2>/dev/null)
+  case "$_outcome" in
+    0) _outcome="succeeded" ;;
+    '') _outcome="not-exposed" ;;
+    *) _outcome="failed" ;;
+  esac
+  _decision=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '
+    .permission_decision // .permissionDecision //
+    .hookSpecificOutput.permissionDecision // .decision // empty' 2>/dev/null)
+  [ -n "$_decision" ] || _decision="not-exposed"
+  _observed=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  mkdir -p "$CWD/.lumvaleos" 2>/dev/null || return 0
+  "$JQ" -nc --arg at "$_observed" --arg phase "$_phase" --arg host "$_host" \
+    --arg model "$_model" --arg session "$SESSION_KEY" --arg turn "${TURN_ID:-unknown}" \
+    --arg tool "$_tool" --arg sum "$_command_sum" --arg semantics "$_semantics" \
+    --arg risk "$_risk" --arg quality "$_quality" --arg outcome "$_outcome" \
+    --arg decision "$_decision" \
+    --argjson declared "$_declared" --argjson materialized "$_materialized" \
+    '{schema_version:1, observed_at:$at, phase:$phase, host_surface:$host, model:$model,
+      session_id:$session, turn_id:$turn, tool_name:$tool, command_sha256:$sum,
+      declared_targets:$declared, materialized_targets:$materialized,
+      path_semantics:$semantics, risk:$risk, outcome:$outcome,
+      guard_decision:$decision,
+      attribution_quality:$quality}' >> "$ACTION_LEDGER" 2>/dev/null || true
+  return 0
+}
 
 # The loop drops SEVEN files into `$CWD/.claude/`, in whatever repository it was run from.
 # None is repository content, and every one of them shows in `git status` until somebody adds an
@@ -201,7 +289,11 @@ amir_loop_self_ignore() {
 if [ -n "$OBSERVE_EVENT" ]; then
   mkdir -p "$CWD/.claude" "$CWD/.lumvaleos" 2>/dev/null || exit 0
   amir_loop_self_ignore "$CWD/.claude" '/.amir-loop-*' '/amir-loop.*.local.md'
-  amir_loop_self_ignore "$CWD/.lumvaleos" '/playbook-events.jsonl' '/.playbook-heartbeat'
+  amir_loop_self_ignore "$CWD/.lumvaleos" '/playbook-events.jsonl' '/agent-actions.jsonl' '/.playbook-heartbeat'
+  case "$OBSERVE_EVENT" in
+    pre-tool) record_action_provenance "pre"; exit 0 ;;
+    post-tool) record_action_provenance "post" ;;
+  esac
   if [ "$OBSERVE_EVENT" = "user-prompt" ]; then
     prompt=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.prompt // empty' 2>/dev/null)
     if [ -z "$prompt" ] && [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
@@ -466,7 +558,7 @@ else
     *)
       mkdir -p "$CWD/.claude" 2>/dev/null || allow_stop
       amir_loop_self_ignore "$CWD/.claude" '/.amir-loop-*' '/amir-loop.*.local.md'
-      amir_loop_self_ignore "$CWD/.lumvaleos" '/playbook-events.jsonl' '/.playbook-heartbeat'
+      amir_loop_self_ignore "$CWD/.lumvaleos" '/playbook-events.jsonl' '/agent-actions.jsonl' '/.playbook-heartbeat'
       [ -f "$CAMPAIGN" ] || date -u +%s > "$CAMPAIGN" 2>/dev/null || allow_stop
       START=$(cat "$CAMPAIGN" 2>/dev/null)
       case "$START" in
@@ -542,7 +634,7 @@ fi
 if [ ! -f "$STATE" ]; then
   mkdir -p "$CWD/.claude" 2>/dev/null || allow_stop
   amir_loop_self_ignore "$CWD/.claude" '/.amir-loop-*' '/amir-loop.*.local.md'
-  amir_loop_self_ignore "$CWD/.lumvaleos" '/playbook-events.jsonl' '/.playbook-heartbeat'
+  amir_loop_self_ignore "$CWD/.lumvaleos" '/playbook-events.jsonl' '/agent-actions.jsonl' '/.playbook-heartbeat'
   {
     cat <<EOF
 ---

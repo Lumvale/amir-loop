@@ -109,6 +109,7 @@ dispatcher closeout. Adapters may translate payload and decision shapes only.
 | Exact-output user contract | UserPromptSubmit | UserPromptSubmit | UserPromptSubmit | latest user message derived during native PreInvocation |
 | Startup reconciliation and sparse heartbeat | SessionStart | SessionStart | SessionStart | idempotent native PreInvocation |
 | Source/test/environment/learning observations | governed PostToolUse | governed PostToolUse | governed PostToolUse | native matcher groups translated to redacted shared observations |
+| Prospective action attribution | shared pre/post-tool ledger | shared pre/post-tool ledger | stable turn plus shared pre/post-tool ledger | native metadata translated to the shared ledger |
 | Runtime/dependency profiles and Bedrock retry policy | shared | shared | shared | shared |
 | Cancellation, bounds, stale-state recovery | shared | shared | shared | shared |
 
@@ -118,6 +119,20 @@ enough to provide the same behavior without polling or using an unsupported even
 Its PostToolUse payload intentionally omits tool arguments, so the adapter classifies
 failed test commands only from redacted failure metadata and never copies command output
 into an event.
+
+### Action provenance and its evidence boundary
+
+The shared host hook appends redacted pre/post-tool observations to
+`.lumvaleos/agent-actions.jsonl`. Each record carries the timestamp, host surface, session and
+turn identifiers, model when the host exposes it, tool name, a SHA-256 command fingerprint,
+path-shaped arguments, MSYS path semantics, outcome, and any guard decision present in the host
+payload. Raw prompts, commands, outputs, and credentials are not stored.
+
+`amir-loop-doctor` summarizes the ledger by host and model and highlights drive-root
+materialization risks. Missing identity stays `unknown`: the ledger supports deterministic
+attribution only for actions observed after installation, and it never manufactures retrospective
+proof. Hooks are prevention and evidence controls, not an operating-system security boundary;
+restrict writable roots with the host sandbox or OS access controls when writes must be impossible.
 
 Every behavioral change must add or update regression coverage for all four hosts. A
 host-specific optimization is acceptable only when the shared invariant remains tested

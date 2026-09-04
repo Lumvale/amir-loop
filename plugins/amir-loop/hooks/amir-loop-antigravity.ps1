@@ -38,6 +38,7 @@ try {
 
     $canonicalPayload = @{
         cwd = $workspace
+        host_surface = 'google-antigravity'
         session_id = [string]$payload.conversationId
         transcript_path = [string]$payload.transcriptPath
         error = [string]$payload.error
@@ -79,8 +80,9 @@ try {
 
     if ($Event -eq 'SourceChanged') {
         $canonicalPayload.turn_id = [string]$payload.stepIdx
+        $canonicalPayload.tool_name = 'Write'
         $canonical = $canonicalPayload | ConvertTo-Json -Compress
-        $null = $canonical | & $gitBash $hook '--observe=source.changed' | Out-String
+        $null = $canonical | & $gitBash $hook '--observe=post-tool' | Out-String
         '{}'
         exit 0
     }
