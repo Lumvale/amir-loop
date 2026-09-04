@@ -356,6 +356,18 @@ exhausted. A status report, partial result, filed follow-up issue, pending check
 discovered blocker means this goal still has work remaining; it is not permission to
 switch scope.
 
+Hosted CI and other externally progressing checks are asynchronous evidence gates, not
+agent work after dispatch. When a durable reconciliation mechanism is available, record
+the exact repository or deployment, immutable head/revision, required checks, terminal
+criteria, and post-terminal actions. After required self-review, push, create or update the
+pull request, enable auto-merge for that reviewed head when repository policy supports it,
+schedule quiet reconciliation, then continue the next authorised actionable task. This does
+not complete the pending goal or authorise unrelated scope. Reconciliation must reject stale
+heads, preserve required checks, and notify only on
+terminal success, terminal failure, material change, or required human action. Poll or wait
+only when no durable reconciliation mechanism exists or the result is required before any
+other safe authorised action can proceed.
+
 Project standing orders are constraints and candidate actions, never independent scope.
 Apply them only through the standing-order applicability test above. Exhausting the direct
 goal does not unlock unrelated fallback work. A backlog-selection instruction is eligible

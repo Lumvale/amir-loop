@@ -736,6 +736,18 @@ you have exhausted every in-scope way to advance it. A status report, partial re
 filed follow-up issue, pending check, or newly discovered blocker is evidence that the
 primary goal still has work remaining; it is not permission to switch scope.
 
+Hosted CI and other externally progressing checks are asynchronous evidence gates, not
+agent work after dispatch. When a durable reconciliation mechanism is available, record
+the exact repository or deployment, immutable head/revision, required checks, terminal
+criteria, and post-terminal actions. After required self-review, push, create or update the
+pull request, enable auto-merge for that reviewed head when repository policy supports it,
+schedule quiet reconciliation, then continue the next authorised actionable task. This does
+not complete the pending goal or authorise unrelated scope. Reconciliation must reject stale
+heads, preserve required checks, and notify only on
+terminal success, terminal failure, material change, or required human action. Poll or wait
+only when no durable reconciliation mechanism exists or the result is required before any
+other safe authorised action can proceed.
+
 Project standing orders are constraints and candidate actions, never independent scope.
 Apply them only through the standing-order applicability test above. Exhausting the direct
 goal does not unlock unrelated fallback work. A backlog-selection instruction is eligible
@@ -1025,6 +1037,13 @@ and authority gates recorded in the standing-order applicability section.
 Do not pick general board, routine, playbook, or standing-order backlog work merely because the
 primary goal is exhausted. Select fallback work only when the direct request itself authorises
 ongoing or backlog selection in that eligible domain; otherwise proceed to closeout.
+
+Treat dispatched hosted CI as an asynchronous evidence gate when durable reconciliation is
+available. Persist the exact head/revision, required checks, terminal criteria, and follow-up
+actions. After required self-review, push, create or update the pull request, enable auto-merge
+for the reviewed head when supported. Reconcile quietly and reject stale heads. Never bypass
+required checks. Continue the next authorised actionable task instead of polling or idling.
+Pending CI still belongs to the primary goal and does not authorise unrelated scope or completion.
 
 If you have not yet done so, perform one BOUNDED RELATED-WORK SWEEP for this direct request across
 the relevant issue trackers, boards, and open pull requests. Consolidate only confirmed duplicates,
