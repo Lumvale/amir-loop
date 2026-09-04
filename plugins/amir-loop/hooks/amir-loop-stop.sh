@@ -140,6 +140,7 @@ CAMPAIGN="$CWD/.claude/.amir-loop-campaign"
 MARKER="$CWD/.claude/.amir-loop-done-$SESSION"
 RETRY_FILE="$CWD/.claude/.amir-loop-retry-$SESSION"
 CLOSEOUT_FILE="$CWD/.claude/.amir-loop-closeout-$SESSION_KEY.json"
+EXTERNAL_BLOCKER_FILE="$CWD/.claude/.amir-loop-external-blocker-$SESSION_KEY.json"
 EXACT_OUTPUT_FILE="$CWD/.claude/.amir-loop-exact-output-$SESSION_KEY"
 ACTION_LEDGER="$CWD/.lumvaleos/agent-actions.jsonl"
 
@@ -748,6 +749,16 @@ terminal success, terminal failure, material change, or required human action. P
 only when no durable reconciliation mechanism exists or the result is required before any
 other safe authorised action can proceed.
 
+An external blocker may suspend the loop only through one compact
+<amir-loop-external-blocker>{...}</amir-loop-external-blocker> JSON object. It must use
+version=1; identify blocker_kind as owner-only or external-state; provide blocker_id,
+exact_human_action, an https evidence_uri, and resume_condition; list every attempted and
+exhausted agent-side alternative in exhausted_agent_side_alternatives; set pending_ci=false
+and remaining_agent_actionable_work=false; and set actionable_items=[]. Pending CI, vague
+requests, missing evidence, or any remaining agent-side action must be rejected. Acceptance
+suspends without completion, preserves the session state, and resumes on the next real user
+turn or externally triggered turn.
+
 Project standing orders are constraints and candidate actions, never independent scope.
 Apply them only through the standing-order applicability test above. Exhausting the direct
 goal does not unlock unrelated fallback work. A backlog-selection instruction is eligible
@@ -935,6 +946,72 @@ fi
 case "$LAST" in
   *"<amir-loop-blocked>"*"</amir-loop-blocked>"*) suspend ;;
 esac
+
+# Direct-goal external blockers are distinct from completion and required-runtime dependency
+# failures. The schema proves that no agent-side action remains; deterministic rejection keeps
+# malformed, vague, pending-CI, and soft-blocker claims from becoming an escape hatch.
+if printf '%s' "$LAST" | grep -Fq '<amir-loop-external-blocker>'; then
+  external_blocker=$(printf '%s' "$LAST" | sed -n 's|.*<amir-loop-external-blocker>\(.*\)</amir-loop-external-blocker>.*|\1|p' | tail -n 1)
+  blocker_rejection=""
+  if [ -z "$external_blocker" ] || ! printf '%s' "$external_blocker" | "$JQ" -e 'type == "object"' >/dev/null 2>&1; then
+    blocker_rejection="malformed JSON object"
+  elif ! printf '%s' "$external_blocker" | "$JQ" -e '.version == 1' >/dev/null 2>&1; then
+    blocker_rejection="version must be 1"
+  elif ! printf '%s' "$external_blocker" | "$JQ" -e '.blocker_kind == "owner-only" or .blocker_kind == "external-state"' >/dev/null 2>&1; then
+    blocker_rejection="blocker_kind must be owner-only or external-state"
+  elif ! printf '%s' "$external_blocker" | "$JQ" -e '.blocker_id | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._:/#-]{2,127}$")' >/dev/null 2>&1; then
+    blocker_rejection="blocker_id is missing or malformed"
+  elif ! printf '%s' "$external_blocker" | "$JQ" -e '
+    .exact_human_action as $a |
+    ($a | type == "string" and length >= 20) and
+    ($a | test("(^|[[:space:]])(approve|grant|set|change|install|enable|disable|provide|upload|sign|review|decide|confirm|open|save)([[:space:]]|$)"; "i")) and
+    (($a | ascii_downcase) as $l |
+      ["help", "please help", "take action", "fix it", "do this", "resolve blocker", "approve this"] |
+      index($l) == null)
+  ' >/dev/null 2>&1; then
+    blocker_rejection="exact_human_action is missing or vague"
+  elif ! printf '%s' "$external_blocker" | "$JQ" -e '.evidence_uri | type == "string" and test("^https://[^[:space:]]+$")' >/dev/null 2>&1; then
+    blocker_rejection="evidence_uri must be a durable https URI"
+  elif ! printf '%s' "$external_blocker" | "$JQ" -e '
+    .resume_condition | type == "string" and length >= 12 and
+    test("^(when|after|once)[[:space:]]"; "i")
+  ' >/dev/null 2>&1; then
+    blocker_rejection="resume_condition is missing or vague"
+  elif ! printf '%s' "$external_blocker" | "$JQ" -e '
+    .exhausted_agent_side_alternatives | type == "array" and length > 0 and
+    all(.[]; type == "string" and length >= 8)
+  ' >/dev/null 2>&1; then
+    blocker_rejection="exhausted_agent_side_alternatives must list concrete attempts"
+  elif ! printf '%s' "$external_blocker" | "$JQ" -e '.pending_ci == false' >/dev/null 2>&1; then
+    blocker_rejection="pending CI is an asynchronous evidence gate, not an external blocker"
+  elif ! printf '%s' "$external_blocker" | "$JQ" -e '.remaining_agent_actionable_work == false' >/dev/null 2>&1; then
+    blocker_rejection="remaining agent-actionable work must be exhausted"
+  elif ! printf '%s' "$external_blocker" | "$JQ" -e '.actionable_items | type == "array" and length == 0' >/dev/null 2>&1; then
+    blocker_rejection="actionable_items must be an empty array"
+  fi
+
+  if [ -z "$blocker_rejection" ]; then
+    blocker_id=$(printf '%s' "$external_blocker" | "$JQ" -r '.blocker_id')
+    printf '%s' "$external_blocker" | "$JQ" --arg accepted_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      --arg turn_id "${TURN_ID:-legacy}" '. + {accepted_at:$accepted_at, suspended_turn:$turn_id}' \
+      > "$EXTERNAL_BLOCKER_FILE" 2>/dev/null || allow_stop
+    if [ -n "$TURN_ID" ]; then
+      printf 'turn:%s\n' "$TURN_ID" > "$MARKER" 2>/dev/null || allow_stop
+    else
+      user_turns > "$MARKER" 2>/dev/null || allow_stop
+    fi
+    "$JQ" -n --arg msg "Amir Loop suspended | external blocker accepted: $blocker_id" \
+      '{systemMessage:$msg}'
+    exit 0
+  fi
+
+  BLOCKER_PROMPT="External blocker suspension rejected: $blocker_rejection. Continue the direct user goal and take the next concrete agent-side action. Emit a fresh structured marker only after all agent-side alternatives are exhausted; do not use pending CI as a blocker."
+  "$JQ" -n --arg prompt "$BLOCKER_PROMPT" \
+    --arg msg "Amir Loop external blocker rejected | $blocker_rejection" \
+    '{decision:"block", reason:$prompt, systemMessage:$msg,
+      hookSpecificOutput:{hookEventName:"Stop", decision:"block", reason:$prompt}}'
+  exit 0
+fi
 
 if [ -n "$GOAL" ] && [ "$GOAL" != "null" ]; then
   # Phase 2: only a nonce issued for a validated closeout proposal can authorize the

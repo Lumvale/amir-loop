@@ -263,6 +263,24 @@ ordinary shell, repository, build, test, review, and git operations remain nativ
 }
 ```
 
+### External blocker suspension
+
+A direct goal that only a person or external state can advance uses a separate, fail-closed
+protocol. Emit one compact JSON object and no completion promise:
+
+```text
+<amir-loop-external-blocker>{"version":1,"blocker_kind":"owner-only","blocker_id":"github-app-permission-50","exact_human_action":"Set the GitHub App Actions permission to Read and write and approve the installation update.","evidence_uri":"https://github.com/Lumvale/amir-loop/issues/50","resume_condition":"When the installation permission read-back reports Actions write access.","exhausted_agent_side_alternatives":["Verified the current permission through the GitHub API.","Confirmed the app owner must approve this permission change."],"pending_ci":false,"remaining_agent_actionable_work":false,"actionable_items":[]}</amir-loop-external-blocker>
+```
+
+The Stop hook requires every field, accepts only `owner-only` or `external-state`, requires a
+concrete human action, an HTTPS evidence URI, a concrete `when`/`after`/`once` resume condition,
+and at least one exhausted agent-side alternative. `pending_ci` must be false,
+`remaining_agent_actionable_work` must be false, and `actionable_items` must be empty. Pending
+hosted CI is handled by durable asynchronous reconciliation instead. Missing or vague fields and
+remaining work are rejected with a deterministic reason. A valid marker persists the blocker
+evidence, suppresses Stop re-arming for that turn without declaring completion, and leaves the
+session state intact so the next user or externally triggered turn resumes the same goal.
+
 ### Amazon Bedrock
 
 Amir Loop does not proxy or invoke a model itself; it preserves the host's continuation lifecycle.

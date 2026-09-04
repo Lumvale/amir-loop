@@ -368,6 +368,16 @@ terminal success, terminal failure, material change, or required human action. P
 only when no durable reconciliation mechanism exists or the result is required before any
 other safe authorised action can proceed.
 
+An external blocker may suspend the loop only through one compact
+<amir-loop-external-blocker>{...}</amir-loop-external-blocker> JSON object. It must use
+version=1; identify blocker_kind as owner-only or external-state; provide blocker_id,
+exact_human_action, an https evidence_uri, and resume_condition; list every attempted and
+exhausted agent-side alternative in exhausted_agent_side_alternatives; set pending_ci=false
+and remaining_agent_actionable_work=false; and set actionable_items=[]. Pending CI, vague
+requests, missing evidence, or any remaining agent-side action must be rejected. Acceptance
+suspends without completion, preserves the session state, and resumes on the next real user
+turn or externally triggered turn.
+
 Project standing orders are constraints and candidate actions, never independent scope.
 Apply them only through the standing-order applicability test above. Exhausting the direct
 goal does not unlock unrelated fallback work. A backlog-selection instruction is eligible
