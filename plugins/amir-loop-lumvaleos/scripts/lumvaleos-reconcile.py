@@ -11,6 +11,21 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from typing import Any
+
+
+def root_from_server(command: str, arguments: list[Any] | None = None) -> Path | None:
+    """Recover the engine root from the same MCP command shapes as the preflight adapter."""
+    for value in [command, *(str(item) for item in (arguments or []))]:
+        candidate = Path(value.strip().strip('"')).expanduser()
+        lowered = candidate.name.lower()
+        if lowered in {"lumvaleos-mcp.cmd", "lumvaleos-mcp.sh"}:
+            return candidate.parent.parent
+        if lowered == "lumvaleos.py":
+            return candidate.parent
+        if lowered == "lumvaleos_mcp_server.py" and candidate.parent.name == "scripts":
+            return candidate.parent.parent
+    return None
 
 
 def lumvaleos_root() -> Path | None:
@@ -18,6 +33,21 @@ def lumvaleos_root() -> Path | None:
     if explicit:
         candidate = Path(explicit).expanduser()
         return candidate if (candidate / "lumvaleos.py").is_file() else None
+
+    config = Path(os.environ.get(
+        "AMIR_LOOP_CODEX_CONFIG",
+        str(Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "config.toml"),
+    ))
+    if config.is_file():
+        try:
+            import tomllib
+            server = tomllib.loads(config.read_text(encoding="utf-8")).get(
+                "mcp_servers", {}).get("lumvaleos", {})
+            candidate = root_from_server(str(server.get("command", "")), server.get("args", []))
+            if candidate and (candidate / "lumvaleos.py").is_file():
+                return candidate
+        except (OSError, ValueError, TypeError):
+            pass
     current = Path.cwd().resolve()
     for candidate in (current, *current.parents):
         if (candidate / "lumvaleos.py").is_file():

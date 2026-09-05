@@ -29,6 +29,24 @@ PY
   [ -z "$output" ]
 }
 
+@test "Codex MCP configuration locates LumvaleOS outside the current repository" {
+  root="$BATS_TEST_TMPDIR/configured-lumvale-os"
+  mkdir -p "$root"
+  touch "$root/lumvaleos.py"
+  config="$BATS_TEST_TMPDIR/config.toml"
+  runtime_root="$root"
+  runtime_script="$SCRIPT"
+  if [[ "${OSTYPE:-}" == msys* ]]; then
+    runtime_root=$(cygpath -m "$root")
+    runtime_script=$(cygpath -w "$SCRIPT")
+  fi
+  printf '[mcp_servers.lumvaleos]\ncommand = "%s/lumvaleos-mcp.cmd"\n' "$runtime_root" > "$config"
+  AMIR_LOOP_CODEX_CONFIG="$config" LUMVALEOS_ROOT= run python -c \
+    "import importlib.util; s=importlib.util.spec_from_file_location('r', r'$runtime_script'); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); print(m.lumvaleos_root())"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *configured-lumvale-os* ]]
+}
+
 @test "companion plugin wakes on session and prompt activation, never on a timer" {
   hooks="$BATS_TEST_DIRNAME/../plugins/amir-loop-lumvaleos/hooks.json"
   jq -e '.hooks.SessionStart and .hooks.UserPromptSubmit' "$hooks"
