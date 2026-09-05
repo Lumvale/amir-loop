@@ -175,6 +175,12 @@ not need a shell merely to write its JSON policy. Restart the host or begin a ne
 after changing plugin policy or installation because hosts cache skills, MCP configuration and
 hook definitions.
 
+When the companion is installed, session start and user-prompt activity wake LumvaleOS's central
+automation reconciler. These are opportunistic signals, not timers: LumvaleOS finds every overdue
+Workspace job, checkpoints successful work, and uses one Workspace-global lease so concurrent
+agent sessions cannot run a second instance. No cron, Windows Task Scheduler, or GitHub scheduled
+workflow is required for local agentic work.
+
 > **The ordering is not optional, and appending is the common mistake.** `System32` ships its
 > own `bash.exe` (WSL) and normally precedes anything you add, so *appending* `Git\bin` leaves
 > `bash` resolving to WSL:

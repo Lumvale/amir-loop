@@ -1,7 +1,7 @@
 {
   "name": "amir-loop-lumvaleos",
-  "version": "0.3.0+codex.20260905002000",
-  "description": "Adds governed LumvaleOS dependency policy and bounded native-to-CLI MCP continuity to Amir Loop projects.",
+  "version": "0.4.0+codex.20260905043507",
+  "description": "Adds governed LumvaleOS policy and activation-driven overdue-work reconciliation to Amir Loop projects.",
   "author": {
     "name": "Lumvale",
     "email": "amir@lumvale.com",
