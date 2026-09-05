@@ -339,6 +339,13 @@ scheduled build succeeds. An explicitly approved pre-merge exception remains fai
 existing workflow or required context is not itself approval. Notifications are reserved for
 terminal or materially actionable changes.
 
+The scheduled fleet run is a bounded singleton. If it is healthy and still draining its
+concurrency-2 queue when the next hour arrives, the clock suppresses a replacement instead of
+cancelling or overlapping it. Each repository has a shorter timeout and every success is
+checkpointed immediately, so a later natural tick resumes only the uncheckpointed tail. This rule
+is specific to scheduled fleet work: superseded PR/head workflows may still cancel while Story C
+removes that older runner-backed topology.
+
 ### Context-driven events and reconciliation
 
 Supported host lifecycle hooks append redacted, workspace-scoped CloudEvents for
