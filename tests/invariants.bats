@@ -644,6 +644,9 @@ EOF
   [ "$status" -eq 0 ]
   run grep -q 'does not alter priority or authorise self-modification' "$BATS_TEST_DIRNAME/../templates/principles/lumvale-fleet.md"
   [ "$status" -eq 0 ]
+
+  run grep -q 'lumvale-os-workspaces/\*' "$BATS_TEST_DIRNAME/../templates/principles/lumvale-fleet.md"
+  [ "$status" -eq 0 ]
 }
 
 @test "automatic and manual briefs enforce governed recursive improvement" {

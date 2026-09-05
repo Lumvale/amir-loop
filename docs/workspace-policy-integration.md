@@ -13,6 +13,11 @@ Workspace id and deterministic policy hash. Select it in the agent host with:
 AMIR_LOOP_WORKSPACE_ROOT=/path/to/ws-lumvale
 ```
 
+The Workspace may itself have a Git remote so its authored policy and knowledge can be reused and
+distributed. That remote does not turn the Workspace into a product repository. In particular,
+repositories under `lumvale-os-workspaces/*` are excluded from ordinary product implementation,
+PR-drain, and board-filing work unless the owner explicitly names one in the direct request.
+
 `WORKSPACE_ROOT` is accepted when the same environment selects both LumvaleOS and Amir Loop.
 The selected directory must contain `workspace.yaml`. A selected Workspace never falls through to
 another ancestor's principles. If no Workspace is selected, the existing nearest-project lookup is
