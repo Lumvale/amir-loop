@@ -25,6 +25,11 @@ opt-in per project and version-controlled.
 - Capture verified findings and close out through LumvaleOS. Use ordinary local shell, test,
   review, and git tools for implementation; LumvaleOS governs knowledge, workflow, backlog,
   and evidence rather than replacing every engineering tool.
+- For build/test health, inspect the latest relevant natural `Fleet Build` run in
+  `Lumvale/lumvale-infra` (`fleet-scheduler.yml`) and attribute repository + tier + tested SHA.
+  Ordinary PRs intentionally have no runner-backed build/test checks. Never dispatch a product
+  workflow after merge; fix the owning repository and require a later natural Fleet Build receipt
+  before calling that default-branch SHA centrally verified or releasable.
 
 ## Lumvale architecture and recursive improvement
 - Follow the current Lumvale Architecture and Engineering ADRs, autonomous constitution,
