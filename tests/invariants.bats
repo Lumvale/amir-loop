@@ -76,7 +76,23 @@ load helper
   echo "$reason" | grep -q "Continue the DIRECT USER REQUEST"
   echo "$reason" | grep -q "merely because the"
   echo "$reason" | grep -q "primary goal is exhausted"
+  echo "$reason" | grep -q "reader advertised"
+  ! echo "$reason" | grep -Eq "LumvaleOS|fleet\.await_run"
+  reason_bytes=$(printf '%s' "$reason" | wc -c | tr -d '[:space:]')
+  [ "$reason_bytes" -le 2048 ]
   ! echo "$reason" | grep -q "Do the work."
+}
+
+@test "repeat continuation stays within the byte budget on Codex" {
+  arm_state 5 10
+  run run_codex_hook
+  [ "$status" -eq 0 ]
+  reason=$(echo "$output" | jq -r '.reason')
+  reason_bytes=$(printf '%s' "$reason" | wc -c | tr -d '[:space:]')
+  [ "$reason_bytes" -le 2048 ]
+  echo "$reason" | grep -q "applicable Workspace or product policy"
+  ! echo "$reason" | grep -Eq "LumvaleOS|fleet\.await_run"
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput // empty')" = "" ]
 }
 
 @test "standing orders are gated by workspace and current-goal relevance" {
@@ -126,6 +142,7 @@ load helper
   cat > "$BATS_TEST_TMPDIR/ws/.lumvaleos/amir-loop-principles.md" <<'EOF'
 <!-- lumvaleos-agent-policy: 1 workspace=ws-lumvale hash=sha256:abc123 -->
 RIGHT WORKSPACE POLICY
+Use product-specific capability fleet.await_run for compact immutable run evidence.
 EOF
   use_fixture vscode-copilot.jsonl
 
@@ -133,6 +150,7 @@ EOF
 
   [ "$status" -eq 0 ]
   grep -q 'RIGHT WORKSPACE POLICY' "$TEST_STATE"
+  grep -q 'fleet.await_run' "$TEST_STATE"
   grep -q 'workspace=ws-lumvale hash=sha256:abc123' "$TEST_STATE"
   ! grep -q 'WRONG ANCESTOR POLICY' "$TEST_STATE"
 }
@@ -803,6 +821,8 @@ EOF
   [ "$status" -eq 0 ]
   ! grep -qi 'lumvaleos' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
   ! grep -q 'next_due_playbook' "$BATS_TEST_TMPDIR/.claude/amir-loop.pending.local.md"
+  grep -q 'without naming a product or tool' "$BATS_TEST_DIRNAME/../docs/workspace-policy-integration.md"
+  grep -q 'without changing the portable Stop hook' "$BATS_TEST_DIRNAME/../docs/workspace-policy-integration.md"
 }
 
 @test "a project with no standing orders stays within the direct goal" {

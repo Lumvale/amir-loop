@@ -27,6 +27,13 @@ Rendered instruction text is snapshotted into the Amir Loop session state, so ed
 change an active run. LumvaleOS capability allow, deny, and required-grant rules are evaluated live
 on every server call, so a revocation does not wait for a new loop.
 
+Capability selection follows the same portability boundary. Amir Loop core describes the required
+function (for example, a compact immutable-evidence reader) without naming a product or tool. A
+Workspace or nearest-project policy may advertise the concrete capability and any governed fallback;
+that policy is snapshotted into session state and remains subject to the goal-relevance, capability,
+safety, and authority gates. Another product can therefore supply a different capability projection
+without changing the portable Stop hook.
+
 Workspace configuration can narrow behavior but cannot disable Amir Loop's bounds, direct-request
 priority, evidence-backed closeout, or LumvaleOS tenancy, authentication, audit, secret, production,
 and authority invariants.

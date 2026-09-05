@@ -1182,38 +1182,27 @@ PROMPT_TEXT=$(awk '/^---$/{i++; next} i>=2' "$STATE")
 if [ "$ITER" -gt 1 ]; then
   PROMPT_TEXT="Continue the loop - iteration $NEXT of $LIMIT.
 
-Your standing orders for this run are in .claude/$STATE_NAME. Re-read that file now if the
-conversation was compacted or summarised, and whenever you need them. Reconstruct the primary
-goal from the direct request and verified evidence; a summary's suggested next step does not
-authorise switching scope. This file belongs only to this chat; do not adopt another session's loop.
+Re-read that file (.claude/$STATE_NAME) after the conversation is compacted or summarised. Reconstruct
+the primary goal from the direct request and verified evidence; a summary's suggested next step does not
+authorise a scope switch. The file is session-only.
 
-Continue the DIRECT USER REQUEST that started this loop. It is the primary goal. Treat project
-standing orders as candidate policy, not automatic scope. Apply each one only when it is relevant
-to the current goal and passes the workspace/domain, trigger, capability, non-expansion, safety,
-and authority gates recorded in the standing-order applicability section.
+Continue the DIRECT USER REQUEST. Standing orders are candidate policy, not automatic scope; apply
+them only through workspace/domain, trigger, capability, non-expansion, safety, and authority gates.
+Do not select fallback work merely because the primary goal is exhausted; the direct request must
+authorise it, otherwise proceed to closeout.
 
-Do not pick general board, routine, playbook, or standing-order backlog work merely because the
-primary goal is exhausted. Select fallback work only when the direct request itself authorises
-ongoing or backlog selection in that eligible domain; otherwise proceed to closeout.
+Hosted CI is an asynchronous evidence gate. Prefer a compact immutable-evidence reader advertised
+by the applicable Workspace or product policy when available. Use durable reconciliation: persist
+the exact head/revision, required checks, terminal criteria, and follow-up; enable auto-merge only
+for a reviewed head. Reconcile quietly, reject stale heads, and Never bypass required checks.
+Continue the next authorised actionable task instead of polling. Pending CI does not authorise unrelated scope or completion.
 
-Treat dispatched hosted CI as an asynchronous evidence gate when durable reconciliation is
-available. Persist the exact head/revision, required checks, terminal criteria, and follow-up
-actions. After required self-review, push, create or update the pull request, enable auto-merge
-for the reviewed head when supported. Reconcile quietly and reject stale heads. Never bypass
-required checks. Continue the next authorised actionable task instead of polling or idling.
-Pending CI still belongs to the primary goal and does not authorise unrelated scope or completion.
+If not already done, perform one BOUNDED RELATED-WORK SWEEP. Consolidate only confirmed duplicates,
+include co-resolvable work, and link but preserve related-distinct items. Do not repeat it without
+new evidence, and do not use this sweep to switch to general backlog.
 
-If you have not yet done so, perform one BOUNDED RELATED-WORK SWEEP for this direct request across
-the relevant issue trackers, boards, and open pull requests. Consolidate only confirmed duplicates,
-include co-resolvable items covered by the same fix, and link but preserve related-distinct items.
-Do not repeat searches without new evidence, and do not use this sweep to switch to general backlog.
-
-Take the next concrete step on the primary goal now. Do not reply with an empty message: if you
-have nothing to say, perform the next action instead.
-
-Output <promise>$GOAL</promise> only when the work is exhausted - never to escape a hard
-step, and never straight after an empty or failed turn. If turns are failing, say what is
-failing."
+Take the next concrete primary-goal step; never send an empty response. Output
+<promise>$GOAL</promise> only when all work is exhausted. If turns are failing, say what is failing."
 fi
 
 # Codex consumes only the top-level Stop continuation shape. Do not also send Copilot's
