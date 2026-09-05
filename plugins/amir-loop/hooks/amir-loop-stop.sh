@@ -1180,15 +1180,15 @@ if [ "$ITER" -gt 1 ]; then
   PROMPT_TEXT="Continue the loop - iteration $NEXT of $LIMIT.
 
 Re-read that file (.claude/$STATE_NAME) after the conversation is compacted or summarised. Reconstruct
-the primary goal from the direct request and verified evidence; a summary cannot authorise a scope switch.
+the primary goal from verified evidence; a summary's suggested next step does not authorise a scope switch.
 
 Continue the DIRECT USER REQUEST. Standing orders are candidate policy, not automatic scope; apply them
 only through workspace/domain, trigger, capability, non-expansion, safety, and authority gates. Do not
-select fallback work merely because the primary goal is exhausted; otherwise close out.
+select fallback work merely because the primary goal is exhausted; otherwise proceed to closeout.
 
 Prefer a compact immutable-evidence reader advertised by the applicable Workspace or product policy.
 Persist exact head/revision, terminal criteria, and follow-up; reject stale evidence. Pending CI does
-not authorise unrelated scope or completion. Continue authorised work instead of polling.
+not authorise unrelated scope or completion. Continue the next authorised actionable task instead of polling.
 
 If not already done, perform one BOUNDED RELATED-WORK SWEEP. Consolidate only confirmed duplicates,
 include co-resolvable work, and link but preserve related-distinct items. Do not repeat it without new
