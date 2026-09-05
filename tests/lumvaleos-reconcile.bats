@@ -10,8 +10,15 @@ import sys
 Path(os.environ["RECONCILE_CAPTURE"]).write_text(" ".join(sys.argv[1:]), encoding="utf-8")
 PY
   capture="$BATS_TEST_TMPDIR/capture"
-  LUMVALEOS_ROOT="$root" LUMVALEOS_PYTHON="$(command -v python)" \
-    RECONCILE_CAPTURE="$capture" AMIR_LOOP_RECONCILE_FOREGROUND=1 run python "$SCRIPT"
+  runtime_root="$root"
+  runtime_capture="$capture"
+  if [[ "${OSTYPE:-}" == msys* ]]; then
+    # Environment values are not argv and MSYS does not translate them for native Python.
+    runtime_root=$(cygpath -w "$root")
+    runtime_capture=$(cygpath -w "$capture")
+  fi
+  LUMVALEOS_ROOT="$runtime_root" LUMVALEOS_PYTHON="$(command -v python)" \
+    RECONCILE_CAPTURE="$runtime_capture" AMIR_LOOP_RECONCILE_FOREGROUND=1 run python "$SCRIPT"
   [ "$status" -eq 0 ]
   [ "$(cat "$capture")" = "scheduler run --json" ]
 }
