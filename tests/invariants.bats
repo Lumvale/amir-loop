@@ -110,6 +110,13 @@ load helper
   grep -q "CONFIRMED DUPLICATE" "$state"
   grep -q "CO-RESOLVABLE" "$state"
   grep -q "RELATED BUT DISTINCT" "$state"
+  grep -q "## Shared-worktree safety" "$state"
+  grep -q "not proof that this session owns it exclusively" "$state"
+  grep -q "stage only the exact paths" "$state"
+  grep -q "inspect the staged diff and stat" "$state"
+  shared_line=$(grep -n "## Shared-worktree safety" "$state" | cut -d: -f1)
+  context_line=$(grep -n "## Context durability" "$state" | cut -d: -f1)
+  [ "$shared_line" -lt "$context_line" ]
 }
 
 @test "selected LumvaleOS Workspace policy wins and records its hash" {
@@ -162,6 +169,10 @@ EOF
   [ "$precedence_line" -gt "$principles_line" ]
   grep -q "## Related-work reconciliation" "$state"
   grep -q "Never infer duplication from title similarity alone" "$state"
+  grep -q "## Shared-worktree safety" "$state"
+  grep -q "not proof that this session owns it exclusively" "$state"
+  grep -q "stage only the exact paths" "$state"
+  grep -q "inspect the staged diff and stat" "$state"
 }
 
 @test "continuation keeps related-work search bounded inside the direct goal" {

@@ -787,6 +787,15 @@ record the relationship. Before finishing, do one reconciliation pass over the m
 their status, link the delivered evidence, close only what is actually satisfied and authorised,
 and state what remains. This sweep is bounded related work, not permission to roam the board.
 
+## Shared-worktree safety
+
+A named worktree path is not proof that this session owns it exclusively. Another agent may alter
+tracked files or even switch the checked-out branch between two commands. Immediately before every
+commit, re-read the current branch and HEAD, inspect tracked status, stage only the exact paths that
+belong to this task, and inspect the staged diff and stat. If the branch changed unexpectedly or
+unrelated tracked changes appear, stop that commit and preserve the other session's work; never
+overwrite, clean, reset, or sweep it into this change. Revalidate after any long wait or handoff.
+
 EOF
     # Domain-neutral goal continuation. Anything naming a specific dispatcher, backlog or tracker
     # belongs in the project's principles file, not in a portable plugin that arms itself
