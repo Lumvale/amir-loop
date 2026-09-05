@@ -70,6 +70,20 @@ codex plugin marketplace add Lumvale/amir-loop
 codex plugin add amir-loop@lumvale
 ```
 
+To upgrade, refresh the marketplace, remove the registered release, and install the newly
+versioned release before restarting Codex:
+
+```text
+codex plugin marketplace upgrade lumvale
+codex plugin remove amir-loop@lumvale
+codex plugin add amir-loop@lumvale
+```
+
+Every behavior-changing `plugins/amir-loop` change must bump the Codex manifest version. On
+Windows, a running Codex process can hold the installed hook open; publishing changed bytes under
+the same version makes reinstall target that locked cache directory. A new version selects a new
+cache path and keeps the supported remove/add flow deterministic.
+
 For governed Lumvale fleet work, also install the optional companion and configure the
 fleet root:
 
