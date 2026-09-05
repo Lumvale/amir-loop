@@ -1,0 +1,30 @@
+{
+  "description": "Wake LumvaleOS overdue-work reconciliation on agent activity",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$PLUGIN_ROOT/scripts/lumvaleos-reconcile.sh\"",
+            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$env:PLUGIN_ROOT\\scripts\\lumvaleos-reconcile.ps1\"",
+            "timeout": 10,
+            "statusMessage": "Checking overdue LumvaleOS work"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$PLUGIN_ROOT/scripts/lumvaleos-reconcile.sh\"",
+            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$env:PLUGIN_ROOT\\scripts\\lumvaleos-reconcile.ps1\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
