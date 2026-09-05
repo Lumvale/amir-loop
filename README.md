@@ -290,7 +290,7 @@ The Stop hook requires every field, accepts only `owner-only` or `external-state
 concrete human action, an HTTPS evidence URI, a concrete `when`/`after`/`once` resume condition,
 and at least one exhausted agent-side alternative. `pending_ci` must be false,
 `remaining_agent_actionable_work` must be false, and `actionable_items` must be empty. Pending
-hosted CI is handled by durable asynchronous reconciliation instead. Missing or vague fields and
+scheduled default-branch CI is handled by durable asynchronous reconciliation instead. Missing or vague fields and
 remaining work are rejected with a deterministic reason. A valid marker persists the blocker
 evidence, suppresses Stop re-arming for that turn without declaring completion, and leaves the
 session state intact so the next user or externally triggered turn resumes the same goal.
@@ -328,13 +328,15 @@ the agent to re-read its session-scoped state and reconstruct the direct primary
 verified evidence. A summary's suggested next step cannot silently promote fallback backlog
 work over unfinished direct work.
 
-Hosted CI is asynchronous once dispatched. If a durable heartbeat or lease can preserve the
-exact head or revision, required checks, terminal criteria, and follow-up actions, the agent
-self-reviews, pushes, creates or updates the pull request, enables auto-merge for the reviewed
-head when repository policy supports it, records the remaining obligation, and continues the
-next authorised actionable task instead of spending turns polling. Reconciliation remains
-fail-closed: stale heads are rejected, required checks
-cannot be bypassed, pending CI does not complete the goal, and notifications are reserved for
+Per ADR-067, ordinary pull requests do not wait for runner-backed build or test CI. The agent runs
+the applicable local/static checks, self-reviews the exact head, pushes, creates or updates the pull
+request, and enables auto-merge for that reviewed head. A changed head must be revalidated.
+
+Hourly, nightly and weekly default-branch CI is asynchronous evidence for promotion, not a PR merge
+gate. Durable reconciliation records the merged SHA, tier, terminal criteria and follow-up actions;
+it rejects stale evidence and prevents release, versioning or deployment until a relevant stable
+scheduled build succeeds. An explicitly approved pre-merge exception remains fail-closed, but an
+existing workflow or required context is not itself approval. Notifications are reserved for
 terminal or materially actionable changes.
 
 ### Context-driven events and reconciliation
@@ -402,8 +404,8 @@ bats tests/
 
 110 tests across 9 suites (`antigravity`, `bounds`, `dependencies`, `doctor`, `failopen`,
 `invariants`, `parity`, `setup-args`, `status`).
-CI runs this suite on a four-runner matrix (Ubuntu, Apple Silicon macOS, Intel macOS and Windows) on every push and pull
-request.
+The repository's scheduled default-branch tier runs this suite. Pull requests rely on exact-head
+local/static evidence and self-review per ADR-067; they do not allocate the four-runner matrix.
 
 `jq` is vendored as a static binary per platform under
 `plugins/amir-loop/vendor/jq/`, so the hook does not depend on `jq` being installed.

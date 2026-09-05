@@ -493,7 +493,7 @@ external_blocker_json() {
   blocker=$(external_blocker_json | jq -c '.pending_ci=true')
   CODEX_LAST_ASSISTANT="<amir-loop-external-blocker>$blocker</amir-loop-external-blocker>" run run_codex_hook
   [ "$(echo "$output" | jq -r '.decision')" = "block" ]
-  echo "$output" | jq -r '.reason' | grep -q 'pending CI is an asynchronous evidence gate'
+  echo "$output" | jq -r '.reason' | grep -q 'pending scheduled CI is asynchronous promotion evidence'
 }
 
 @test "external blocker rejects remaining agent actionable work" {
@@ -697,18 +697,18 @@ EOF
   echo "$reason" | grep -q "summary's suggested next step does not"
 }
 
-@test "continuation treats hosted CI as a durable asynchronous evidence gate" {
+@test "continuation auto-merges reviewed heads and reserves scheduled CI for promotion evidence" {
   arm_state 2 10
   CODEX_LAST_ASSISTANT="work remains" run run_codex_hook
   [ "$status" -eq 0 ]
   reason=$(echo "$output" | jq -r '.reason')
-  [[ "$reason" == *"asynchronous evidence gate"* ]]
-  [[ "$reason" == *"durable reconciliation"* ]]
+  [[ "$reason" == *"Do not wait for runner-backed build or test CI"* ]]
+  [[ "$reason" == *"local/static checks"* ]]
   [[ "$reason" == *"enable auto-merge"* ]]
   [[ "$reason" == *"Continue the next authorised actionable task"* ]]
-  [[ "$reason" == *"reject stale heads"* ]]
-  [[ "$reason" == *"Never bypass"*"required checks."* ]]
-  [[ "$reason" == *"does not authorise unrelated scope or completion"* ]]
+  [[ "$reason" == *"reject stale evidence"* ]]
+  [[ "$reason" == *"Never release, version or"*"stable successful scheduled build."* ]]
+  [[ "$reason" == *"explicitly approved"*"pre-merge exception"* ]]
 }
 
 @test "continuation re-applies the standing-order relevance gate" {
