@@ -40,7 +40,7 @@ PY
     runtime_root=$(cygpath -m "$root")
     runtime_script=$(cygpath -w "$SCRIPT")
   fi
-  printf '[mcp_servers.lumvaleos]\ncommand = "%s/lumvaleos-mcp.cmd"\n' "$runtime_root" > "$config"
+  printf '[mcp_servers.lumvaleos]\ncommand = "%s/lumvaleos.py"\n' "$runtime_root" > "$config"
   AMIR_LOOP_CODEX_CONFIG="$config" LUMVALEOS_ROOT= run python -c \
     "import importlib.util; s=importlib.util.spec_from_file_location('r', r'$runtime_script'); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); print(m.lumvaleos_root())"
   [ "$status" -eq 0 ]
