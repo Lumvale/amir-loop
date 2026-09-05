@@ -3,6 +3,24 @@
 setup() {
   REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
   WORKFLOW="$REPO_ROOT/.github/workflows/test.yml"
+  CODEQL_WORKFLOW="$REPO_ROOT/.github/workflows/codeql.yml"
+}
+
+@test "CodeQL is post-merge security evidence and never a PR runner" {
+  run grep -F "branches: [main]" "$CODEQL_WORKFLOW"
+  [ "$status" -eq 0 ]
+
+  run grep -F "pull_request" "$CODEQL_WORKFLOW"
+  [ "$status" -ne 0 ]
+
+  run grep -F "security-events: write" "$CODEQL_WORKFLOW"
+  [ "$status" -eq 0 ]
+
+  run grep -F "allows_public_repositories=false" "$CODEQL_WORKFLOW"
+  [ "$status" -eq 0 ]
+
+  run grep -F "language: [actions, python]" "$CODEQL_WORKFLOW"
+  [ "$status" -eq 0 ]
 }
 
 @test "hosted tests run automatically only on main and cancel superseded refs" {
