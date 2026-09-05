@@ -1179,34 +1179,28 @@ PROMPT_TEXT=$(awk '/^---$/{i++; next} i>=2' "$STATE")
 if [ "$ITER" -gt 1 ]; then
   PROMPT_TEXT="Continue the loop - iteration $NEXT of $LIMIT.
 
-Re-read that file (.claude/$STATE_NAME) after the conversation is compacted or summarised. Reconstruct
-the primary goal from the direct request and verified evidence; a summary's suggested next step does not
-authorise a scope switch. The file is session-only.
+Re-read that file (.claude/$STATE_NAME) after compaction. Reconstruct the primary goal from the
+direct request and verified evidence; a summary cannot authorise a scope switch. It is session-only.
 
-Continue the DIRECT USER REQUEST. Standing orders are candidate policy, not automatic scope; apply
-them only through workspace/domain, trigger, capability, non-expansion, safety, and authority gates.
-Do not select fallback work merely because the primary goal is exhausted; the direct request must
-authorise it, otherwise proceed to closeout.
+Continue the DIRECT USER REQUEST. Apply standing orders only through workspace/domain, trigger,
+capability, non-expansion, safety, and authority gates. Do not select fallback work merely because the
+primary goal is exhausted; the direct request must authorise it, otherwise close out.
 
-Hosted CI is an asynchronous evidence gate. Prefer a compact immutable-evidence reader advertised
-by the applicable Workspace or product policy when available. Use durable reconciliation: persist
-the exact head/revision, required checks, terminal criteria, and follow-up; enable auto-merge only
-for a reviewed head. Reconcile quietly, reject stale heads, and Never bypass required checks.
-Continue the next authorised actionable task instead of polling. Pending CI does not authorise unrelated scope or completion.
+Prefer a compact immutable-evidence reader advertised by the applicable Workspace or product policy.
+Persist exact head/revision, terminal criteria, and follow-up; reject stale evidence. Pending CI does
+not authorise unrelated scope or completion. Continue authorised work instead of polling.
 
 If not already done, perform one BOUNDED RELATED-WORK SWEEP. Consolidate only confirmed duplicates,
-include co-resolvable work, and link but preserve related-distinct items. Do not repeat it without
-new evidence, and do not use this sweep to switch to general backlog.
+include co-resolvable work, and link but preserve related-distinct items. Do not repeat it without new
+evidence, and do not use this sweep to switch to general backlog.
 
-Do not wait for runner-backed build or test CI on an ordinary pull request. Run applicable
-local/static checks, self-review the exact head, push, create or update the pull request, and
-enable auto-merge for that reviewed head. A changed head requires revalidation. Persist the merged
-SHA for hourly/nightly/weekly reconciliation and reject stale evidence. Never release, version or
-deploy without a relevant stable successful scheduled build. Only an explicitly approved
-pre-merge exception remains a required check. Continue the next authorised actionable task.
+Do not wait for runner-backed build or test CI on an ordinary pull request. Run applicable local/static
+checks, self-review the exact head, push, and enable auto-merge. Revalidate a changed head. Persist the
+merged SHA for scheduled reconciliation. Never release, version or deploy without a relevant
+stable successful scheduled build. Only an explicitly approved pre-merge exception remains a required check.
 
-Take the next concrete primary-goal step; never send an empty response. Output
-<promise>$GOAL</promise> only when all work is exhausted. If turns are failing, say what is failing."
+Take the next primary-goal step; never send an empty response. Output <promise>$GOAL</promise> only
+when all work is exhausted. If turns fail, say what is failing."
 fi
 
 # Codex consumes only the top-level Stop continuation shape. Do not also send Copilot's

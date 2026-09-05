@@ -1,6 +1,6 @@
 {
   "name": "amir-loop",
-  "version": "1.0.0+codex.20260905031126",
+  "version": "1.0.0+codex.20260905031531",
   "description": "Keeps Claude Code, VS Code Copilot Chat, Codex, and Google Antigravity sessions moving until work is exhausted, with verified closeout and native provider profiles including Amazon Bedrock.",
   "author": {
     "name": "Lumvale",
