@@ -81,6 +81,24 @@ class ReconcileTests(unittest.TestCase):
         self.assertIn("Run the quality rotation.", context)
         self.assertIn("complete --claim ag123 --status success", context)
 
+    def test_python39_fallback_reads_the_lumvaleos_server_without_tomllib(self):
+        text = '''
+[mcp_servers.unrelated]
+command = "ignore-me"
+
+[mcp_servers.lumvaleos]
+command = "/opt/lumvale-os/lumvaleos.py"
+args = ["mcp-server"]
+
+[features]
+enabled = true
+'''
+        with patch.dict(sys.modules, {"tomllib": None}):
+            self.assertEqual(
+                RECONCILE.lumvaleos_server(text),
+                {"command": "/opt/lumvale-os/lumvaleos.py", "args": ["mcp-server"]},
+            )
+
     def test_missing_explicit_engine_is_a_quiet_noop(self):
         with patch.dict(os.environ, {"LUMVALEOS_ROOT": "definitely-missing"}, clear=False):
             self.assertEqual(RECONCILE.main(), 0)
