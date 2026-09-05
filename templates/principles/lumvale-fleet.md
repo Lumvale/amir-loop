@@ -36,6 +36,12 @@ opt-in per project and version-controlled.
   When a canonical statechart exists, derive bounded, replayable MBT paths and drive an independent
   production adapter. BFS state reachability is not transition, transition-pair, variant or
   concurrency coverage; report each denominator and never use the implementation as its own oracle.
+  For cross-system changes, join SCIP/LSIF semantic indexes with exact-version API/event contracts
+  and privacy-safe OpenTelemetry traces. Independently deployed consumers/providers require contract
+  verification; schema-generated clients remain reproducible artifacts from the owning contract repo.
+  CDC requires atomic publication, idempotency, ordering, replay and reconciliation. Chaos starts with
+  deterministic faults and bounded local/UAT experiments; production or recurring chaos requires
+  explicit owner/release authority plus abort and cleanup criteria.
 - For build/test health, inspect the latest relevant natural `Fleet Build` run in
   `Lumvale/lumvale-infra` (`fleet-scheduler.yml`) and attribute repository + tier + tested SHA.
   Ordinary PRs intentionally have no runner-backed build/test checks. Never dispatch a product
