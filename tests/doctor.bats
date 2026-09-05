@@ -16,6 +16,65 @@ setup() {
   echo "$output" | grep -qE '^ok: +bash'
 }
 
+@test "doctor JSON is compact, schema-versioned, ordered, and self-identifying" {
+  run bash "$DOCTOR" --json
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e '
+    .schema_version == 1 and
+    (.status == "ok" or .status == "warn") and
+    .plugin.name == "amir-loop" and
+    (.plugin.version | type == "string" and length > 0) and
+    (.plugin.root | endswith("/plugins/amir-loop")) and
+    .summary.total == (.checks | length) and
+    .summary.fail == 0 and
+    .checks[0].code == "runtime.bash" and
+    all(.checks[]; (.severity == "ok" or .severity == "warn" or .severity == "fail") and
+      (.code | type == "string" and length > 0) and
+      (.message | type == "string" and length > 0) and
+      (if .severity == "ok" then (has("remediation") | not)
+       else (.remediation | type == "string" and length > 0) end))
+  ' >/dev/null
+  ! echo "$output" | grep -q '^ok:'
+}
+
+@test "doctor JSON aggregates failures without losing fail-closed exit behavior" {
+  run env AMIR_LOOP_FAKE_ENABLED_PLUGINS="ralph-loop@claude-plugins-official" bash "$DOCTOR" --json
+  [ "$status" -eq 1 ]
+  echo "$output" | jq -e '
+    .status == "fail" and .summary.fail == 1 and
+    any(.checks[]; .severity == "fail" and .code == "hooks.conflict" and
+      (.remediation | contains("Disable the conflicting")))
+  ' >/dev/null
+}
+
+@test "doctor JSON mode is diagnostic-only and leaves project state untouched" {
+  project="$BATS_TEST_TMPDIR/project"
+  mkdir -p "$project/.claude"
+  printf '%s\n' 'sentinel' > "$project/.claude/keep.txt"
+  before=$(find "$project" -type f -exec cksum {} \; | sort)
+  cd "$project"
+  run bash "$DOCTOR" --json
+  [ "$status" -eq 0 ]
+  after=$(find "$project" -type f -exec cksum {} \; | sort)
+  [ "$before" = "$after" ]
+}
+
+@test "doctor JSON preserves deterministic check order and safely escapes paths" {
+  project="$BATS_TEST_TMPDIR/project with \"quote"
+  mkdir -p "$project/.claude"
+  printf '%s\n' 'orders' > "$project/.claude/amir-loop-principles.md"
+  cd "$project"
+  run bash "$DOCTOR" --json
+  [ "$status" -eq 0 ]
+  first="$output"
+  echo "$first" | jq -e 'any(.checks[]; .code == "policy.principles" and (.message | contains("\"quote")))' >/dev/null
+  run bash "$DOCTOR" --json
+  [ "$status" -eq 0 ]
+  first_codes=$(echo "$first" | jq -c '[.checks[] | [.severity, .code]]')
+  second_codes=$(echo "$output" | jq -c '[.checks[] | [.severity, .code]]')
+  [ "$first_codes" = "$second_codes" ]
+}
+
 @test "doctor flags the WSL risk on Windows and never reports a false all-clear" {
   case "$(uname -s 2>/dev/null)" in
     MINGW*|MSYS*|CYGWIN*) : ;;

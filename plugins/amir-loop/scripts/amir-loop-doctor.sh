@@ -10,21 +10,105 @@
 set -uo pipefail
 RC=0
 ACTION="diagnose"
+JSON_MODE=0
 case "${1:-}" in
   "") ;;
+  --json) JSON_MODE=1 ;;
   --disable-codex-notify) ACTION="disable-codex-notify" ;;
   --print-jq) ACTION="print-jq" ;;
   --help|-h)
-    printf '%s\n' "Usage: amir-loop-doctor.sh [--disable-codex-notify|--print-jq]"
+    printf '%s\n' "Usage: amir-loop-doctor.sh [--json|--disable-codex-notify|--print-jq]"
+    printf '%s\n' "  --json                  Emit a compact, schema-versioned diagnostic object"
     printf '%s\n' "  --disable-codex-notify  Back up Codex config and remove its top-level notify hook"
     printf '%s\n' "  --print-jq              Print the resolved jq path/name and exit (test-only)"
     exit 0
     ;;
   *) printf 'FAIL: unknown option: %s\n' "$1"; exit 1 ;;
 esac
-ok()   { [ "$ACTION" = "print-jq" ] || printf 'ok:   %s\n' "$*"; }
-warn() { [ "$ACTION" = "print-jq" ] || printf 'warn: %s\n' "$*"; }
-fail() { [ "$ACTION" = "print-jq" ] || printf 'FAIL: %s\n' "$*"; RC=1; }
+DIAGNOSTICS=()
+diagnostic_code() {
+  case "$1" in
+    bash\ *) echo runtime.bash ;;
+    host\ bash:*) echo runtime.host_bash ;;
+    jq\ \ *) echo dependency.jq ;;
+    cygpath*) echo dependency.cygpath ;;
+    *conflicting\ Stop-hook*|ralph-loop*|amir-loop-stop.sh*) echo hooks.conflict ;;
+    Workspace\ policy\ root:*) echo policy.workspace ;;
+    principles:*) echo policy.principles ;;
+    policy\ provenance:*) echo policy.provenance ;;
+    dependencies:*) echo policy.dependencies ;;
+    dependency\ *) echo policy.dependency ;;
+    LumvaleOS\ serving\ transport:*) echo lumvaleos.transport ;;
+    LumvaleOS\ native\ MCP*|LumvaleOS\ transport\ receipt*) echo lumvaleos.native_transport ;;
+    runtime\ provider:*) echo runtime.profile ;;
+    runtime\ target:*) echo runtime.target ;;
+    Bedrock\ *) echo runtime.activation ;;
+    *loop\ state*|legacy\ project-wide*|no\ loop\ armed*|kill\ switch*|AMIR_LOOP_OFF*) echo loop.state ;;
+    cross-host\ copy*|cross-host\ parity:*) echo hooks.cross_host_parity ;;
+    action\ provenance\ identity:*) echo provenance.identity ;;
+    action\ provenance\ risk:*) echo provenance.risk ;;
+    action\ provenance:*) echo provenance.ledger ;;
+    *Codex\ notify*|Codex\ config*) echo codex.notify ;;
+    *) echo diagnostic.other ;;
+  esac
+}
+diagnostic_remediation() {
+  case "$1" in
+    runtime.host_bash) echo "Put Git for Windows bin ahead of System32 or run patch-windows-hooks.sh." ;;
+    dependency.jq) echo "Restore the vendored jq binary for this platform or install jq on PATH." ;;
+    dependency.cygpath) echo "Repair the Git for Windows installation so cygpath is available." ;;
+    hooks.conflict) echo "Disable the conflicting or duplicate Stop-hook registration." ;;
+    policy.principles) echo "Render or create principles for the selected project or Workspace." ;;
+    policy.dependencies) echo "Repair amir-loop-dependencies.json to the documented version 1 schema." ;;
+    lumvaleos.native_transport) echo "Repair native MCP transport and restart the agent session." ;;
+    runtime.activation) echo "Expose the configured provider activation signal in the host session." ;;
+    runtime.profile) echo "Repair amir-loop-runtime.json to the documented version 1 provider schema." ;;
+    loop.state) echo "Remove the stale state or kill switch only after confirming the owning session is inactive." ;;
+    hooks.cross_host_parity) echo "Upgrade or reinstall Amir Loop on the named host, then compare hook hashes again." ;;
+    provenance.ledger) echo "Repair the append-only provenance ledger before relying on attribution." ;;
+    provenance.identity) echo "Configure the host to include model identity in future hook events." ;;
+    provenance.risk) echo "Review the named materialized target and repair the host path-conversion boundary." ;;
+    codex.notify) echo "Review the Codex notify hook; use --disable-codex-notify only with explicit authorization." ;;
+    *) echo "" ;;
+  esac
+}
+emit_diagnostic() {
+  _severity="$1"; shift
+  _message="$*"
+  _code=$(diagnostic_code "$_message")
+  _remediation=""
+  [ "$_severity" = "ok" ] || _remediation=$(diagnostic_remediation "$_code")
+  DIAGNOSTICS+=("$_severity"$'\t'"$_code"$'\t'"$_message"$'\t'"$_remediation")
+  if [ "$JSON_MODE" -eq 0 ] && [ "$ACTION" != "print-jq" ]; then
+    case "$_severity" in ok) printf 'ok:   %s\n' "$_message";; warn) printf 'warn: %s\n' "$_message";; fail) printf 'FAIL: %s\n' "$_message";; esac
+  fi
+}
+ok()   { emit_diagnostic ok "$*"; }
+warn() { emit_diagnostic warn "$*"; }
+fail() { emit_diagnostic fail "$*"; RC=1; }
+
+render_json() {
+  _plugin_root=$(cd "$(dirname "$0")/.." && pwd)
+  _manifest="$_plugin_root/.codex-plugin/plugin.json"
+  _plugin_version="unknown"
+  [ -f "$_manifest" ] && _plugin_version=$("$JQ" -r '.version // "unknown"' "$_manifest" 2>/dev/null || echo unknown)
+  _status=ok
+  [ "$RC" -ne 0 ] && _status=fail
+  if [ "$RC" -eq 0 ] && printf '%s\n' "${DIAGNOSTICS[@]}" | grep -q '^warn'; then _status=warn; fi
+  printf '%s\n' "${DIAGNOSTICS[@]}" | "$JQ" -Rsc \
+    --arg status "$_status" --arg root "$_plugin_root" --arg version "$_plugin_version" '
+      split("\n") | map(select(length > 0) | split("\t") |
+        {severity: .[0], code: .[1], message: .[2]} +
+        (if (.[3] // "") == "" then {} else {remediation: .[3]} end)) as $checks |
+      {schema_version: 1, status: $status,
+       plugin: {name: "amir-loop", version: $version, root: $root},
+       summary: {
+         ok: ($checks | map(select(.severity == "ok")) | length),
+         warn: ($checks | map(select(.severity == "warn")) | length),
+         fail: ($checks | map(select(.severity == "fail")) | length),
+         total: ($checks | length)
+       }, checks: $checks}'
+}
 
 # --- bash ---
 ok "bash ${BASH_VERSION%%(*} at $(command -v bash)"
@@ -335,4 +419,7 @@ else
   ok "Codex config not found ($CODEX_CONFIG)"
 fi
 
+if [ "$JSON_MODE" -eq 1 ]; then
+  render_json
+fi
 exit $RC

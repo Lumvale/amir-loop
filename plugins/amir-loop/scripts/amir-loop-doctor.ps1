@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [switch]$DisableCodexNotify,
-    [switch]$PrintJq
+    [switch]$PrintJq,
+    [switch]$Json
 )
 
 $ErrorActionPreference = 'Stop'
@@ -33,6 +34,7 @@ $doctorForBash = $doctor.Replace('\', '/')
 $arguments = @($doctorForBash)
 if ($DisableCodexNotify) { $arguments += '--disable-codex-notify' }
 if ($PrintJq) { $arguments += '--print-jq' }
+if ($Json) { $arguments += '--json' }
 
 & $gitBash @arguments
 exit $LASTEXITCODE

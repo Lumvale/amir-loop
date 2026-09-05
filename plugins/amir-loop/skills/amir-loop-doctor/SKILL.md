@@ -7,6 +7,10 @@ description: Diagnose why Amir Loop is or is not working on this machine.
 
 Run the doctor from the current project directory and show its output verbatim.
 
+For agent-readable diagnostics, prefer the schema-versioned JSON mode (`-Json` on
+PowerShell or `--json` on POSIX) and report only failed checks and actionable warnings.
+The default text mode remains the human-facing diagnostic.
+
 - On Windows, resolve `../../scripts/amir-loop-doctor.ps1` from this skill directory and invoke it with PowerShell. Do not invoke bare `bash`; it may resolve to WSL before Amir Loop can diagnose the host.
 - On POSIX, resolve `../../scripts/amir-loop-doctor.sh` and invoke it with Bash.
 

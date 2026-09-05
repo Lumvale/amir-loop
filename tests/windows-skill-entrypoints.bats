@@ -50,3 +50,26 @@ load helper
   [ "$status" -eq 0 ]
   echo "$output" | grep -q 'jq-windows-amd64.exe'
 }
+
+@test "PowerShell doctor forwards the shared JSON contract" {
+  command -v powershell.exe >/dev/null 2>&1 || skip "PowerShell is Windows-only"
+  script=$(cygpath -w "$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-doctor.ps1")
+  run powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$script" -Json
+  [ "$status" -eq 0 ]
+  echo "$output" | tr -d '\r' | jq -e '
+    .schema_version == 1 and .plugin.name == "amir-loop" and
+    .summary.total == (.checks | length)
+  ' >/dev/null
+}
+
+@test "PowerShell and POSIX doctors expose the same semantic JSON schema" {
+  command -v powershell.exe >/dev/null 2>&1 || skip "PowerShell is Windows-only"
+  posix="$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-doctor.sh"
+  script=$(cygpath -w "$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-doctor.ps1")
+  posix_json=$(bash "$posix" --json)
+  run powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$script" --json
+  [ "$status" -eq 0 ]
+  powershell_json=$(echo "$output" | tr -d '\r')
+  [ "$(echo "$posix_json" | jq -c '[.schema_version, .plugin.name, .checks | map([.severity,.code])]')" = \
+    "$(echo "$powershell_json" | jq -c '[.schema_version, .plugin.name, .checks | map([.severity,.code])]')" ]
+}
