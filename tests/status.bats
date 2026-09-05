@@ -16,6 +16,63 @@ snapshot_claude() {
   echo "$output" | grep -q '^state: idle$'
 }
 
+@test "json status reports an explicit idle state" {
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$STATUS" --json
+  [ "$status" -eq 0 ]
+  jq -e '.schema_version == 1 and .state == "idle" and .session_count == 0 and .sessions == []' <<<"$output"
+}
+
+@test "json status returns deterministic per-session state" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  printf -- '---\niteration: 2\nmax_iterations: 9\ncompletion_promise: "SECOND"\nstarted_at: "2026-09-05T02:00:00Z"\n---\n' > "$BATS_TEST_TMPDIR/.claude/amir-loop.z.local.md"
+  printf -- '---\niteration: 1\nmax_iterations: 8\ncompletion_promise: "FIRST"\nstarted_at: "2026-09-05T01:00:00Z"\n---\n' > "$BATS_TEST_TMPDIR/.claude/amir-loop.a.local.md"
+  cd "$BATS_TEST_TMPDIR"
+
+  run bash "$STATUS" --json
+
+  [ "$status" -eq 0 ]
+  jq -e '.state == "armed" and .session_count == 2' <<<"$output"
+  jq -e '.sessions[0].path | endswith("amir-loop.a.local.md")' <<<"$output"
+  jq -e '.sessions[0] | .state == "armed" and .iteration == 1 and .max_iterations == 8 and .completion_promise == "FIRST" and .started_at == "2026-09-05T01:00:00Z"' <<<"$output"
+  jq -e '.sessions[1].path | endswith("amir-loop.z.local.md")' <<<"$output"
+}
+
+@test "json status fails closed for malformed session counters" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  printf -- '---\niteration: 4junk\nmax_iterations: 20\ncompletion_promise: "NOPE"\nstarted_at: "2026-09-05T01:00:00Z"\n---\n' > "$BATS_TEST_TMPDIR/.claude/amir-loop.bad.local.md"
+  cd "$BATS_TEST_TMPDIR"
+
+  run bash "$STATUS" --json
+
+  [ "$status" -eq 0 ]
+  jq -e '.state == "invalid" and .sessions[0].state == "invalid" and .sessions[0].iteration == null and .sessions[0].max_iterations == null' <<<"$output"
+}
+
+@test "json status represents a legacy single-state file" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  printf -- '---\niteration: 4\nmax_iterations: 20\ncompletion_promise: "LEGACY"\nstarted_at: "2026-09-05T01:00:00Z"\n---\n' > "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md"
+  cd "$BATS_TEST_TMPDIR"
+
+  run bash "$STATUS" --json
+
+  [ "$status" -eq 0 ]
+  jq -e '.state == "armed" and .session_count == 1 and .sessions[0].completion_promise == "LEGACY"' <<<"$output"
+}
+
+@test "json status does not mutate .claude" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  printf -- '---\niteration: 1\nmax_iterations: 2\ncompletion_promise: "SAFE"\nstarted_at: "2026-09-05T01:00:00Z"\n---\n' > "$BATS_TEST_TMPDIR/.claude/amir-loop.safe.local.md"
+  cd "$BATS_TEST_TMPDIR"
+  before="$(snapshot_claude)"
+
+  run bash "$STATUS" --json
+
+  [ "$status" -eq 0 ]
+  after="$(snapshot_claude)"
+  [ "$before" = "$after" ]
+}
+
 @test "status reports iteration and limit when armed" {
   mkdir -p "$BATS_TEST_TMPDIR/.claude"
   printf -- '---\nactive: true\niteration: 4\nmax_iterations: 20\ncompletion_promise: "AMIR LOOP COMPLETE"\nstarted_at: "2026-08-28T00:00:00Z"\n---\n\nwork\n' > "$BATS_TEST_TMPDIR/.claude/amir-loop.local.md"
