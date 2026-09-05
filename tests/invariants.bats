@@ -733,6 +733,15 @@ EOF
 
   run grep -q 'lumvale-os-workspaces/\*' "$BATS_TEST_DIRNAME/../templates/principles/lumvale-fleet.md"
   [ "$status" -eq 0 ]
+
+  run grep -q "risk-triggered assurance ladder" "$BATS_TEST_DIRNAME/../templates/principles/lumvale-fleet.md"
+  [ "$status" -eq 0 ]
+
+  run grep -q "Formal evidence is bounded evidence" "$BATS_TEST_DIRNAME/../templates/principles/lumvale-fleet.md"
+  [ "$status" -eq 0 ]
+
+  run grep -q "BFS state reachability is not transition" "$BATS_TEST_DIRNAME/../templates/principles/lumvale-fleet.md"
+  [ "$status" -eq 0 ]
 }
 
 @test "automatic and manual briefs enforce governed recursive improvement" {

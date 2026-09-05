@@ -25,6 +25,17 @@ opt-in per project and version-controlled.
 - Capture verified findings and close out through LumvaleOS. Use ordinary local shell, test,
   review, and git tools for implementation; LumvaleOS governs knowledge, workflow, backlog,
   and evidence rather than replacing every engineering tool.
+- For material designs and changes, identify the load-bearing invariants and follow ADR-018's
+  risk-triggered assurance ladder. Reuse the LumvaleOS Code Property Graph for ASG, CFG/DFG,
+  PDG/VDG, call and points-to questions; report unresolved analysis as `unknown`. Apply contracts,
+  PBT, mutation, fuzzing, deterministic simulation, symbolic/concolic analysis, abstract
+  interpretation or finite-state model checking only when their failure-shape trigger fits, and
+  record material omissions as deferred (owner + trigger), not-applicable (reason), or unknown.
+  Formal evidence is bounded evidence about the model, not proof that production failure is
+  impossible; generated code and self-healing actions retain ordinary review and authority gates.
+  When a canonical statechart exists, derive bounded, replayable MBT paths and drive an independent
+  production adapter. BFS state reachability is not transition, transition-pair, variant or
+  concurrency coverage; report each denominator and never use the implementation as its own oracle.
 - For build/test health, inspect the latest relevant natural `Fleet Build` run in
   `Lumvale/lumvale-infra` (`fleet-scheduler.yml`) and attribute repository + tier + tested SHA.
   Ordinary PRs intentionally have no runner-backed build/test checks. Never dispatch a product
