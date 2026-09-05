@@ -8,11 +8,11 @@ receipts, and its Workspace-global singleton lease; Amir Loop never implements a
 from __future__ import annotations
 
 import ast
-import os
-from pathlib import Path
 import json
+import os
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
 
@@ -36,6 +36,29 @@ def adopt_workspace_environment(server: dict[str, Any]) -> None:
         value = (server.get("env") or {}).get(key)
         if value:
             os.environ.setdefault(key, str(value))
+
+
+def codex_config_paths(current: Path | None = None) -> list[Path]:
+    """Return Codex configuration from session project scope to user fallback.
+
+    A project may select a different LumvaleOS Workspace from the user's default.
+    The activation hook runs inside that project, so reading only ``~/.codex`` can
+    claim work from the wrong Workspace while leaving this project's queue idle.
+    """
+    override = os.environ.get("AMIR_LOOP_CODEX_CONFIG")
+    if override:
+        return [Path(override).expanduser()]
+
+    here = (current or Path.cwd()).resolve()
+    candidates = [parent / ".codex" / "config.toml" for parent in (here, *here.parents)]
+    candidates.append(
+        Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "config.toml"
+    )
+    result: list[Path] = []
+    for candidate in candidates:
+        if candidate not in result:
+            result.append(candidate)
+    return result
 
 
 def lumvaleos_server(text: str) -> dict[str, Any]:
@@ -84,18 +107,16 @@ def lumvaleos_server(text: str) -> dict[str, Any]:
 
 def lumvaleos_root() -> Path | None:
     explicit = os.environ.get("LUMVALEOS_ROOT")
-    if explicit:
-        candidate = Path(explicit).expanduser()
-        return candidate if (candidate / "lumvaleos.py").is_file() else None
+    explicit_root = Path(explicit).expanduser() if explicit else None
 
-    config = Path(os.environ.get(
-        "AMIR_LOOP_CODEX_CONFIG",
-        str(Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "config.toml"),
-    ))
-    if config.is_file():
+    for config in codex_config_paths():
+        if not config.is_file():
+            continue
         try:
             server = lumvaleos_server(config.read_text(encoding="utf-8"))
             adopt_workspace_environment(server)
+            if explicit_root is not None:
+                return explicit_root if (explicit_root / "lumvaleos.py").is_file() else None
             candidate = root_from_server(str(server.get("command", "")), server.get("args", []))
             if candidate and (candidate / "lumvaleos.py").is_file():
                 return candidate
@@ -103,6 +124,9 @@ def lumvaleos_root() -> Path | None:
             # An optional malformed or unreadable host config is treated as absent so discovery
             # can continue through the current working directory.
             pass
+
+    if explicit_root is not None:
+        return explicit_root if (explicit_root / "lumvaleos.py").is_file() else None
 
     # Antigravity keeps MCP configuration in its Gemini customization root.  Reuse both
     # the runtime command and Workspace environment from that authoritative registration.

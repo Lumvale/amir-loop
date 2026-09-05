@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import importlib.util
-import os
 import io
 import json
-from pathlib import Path
+import os
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
-
 
 SCRIPT = (Path(__file__).resolve().parents[1] / "plugins" / "amir-loop-lumvaleos" /
           "scripts" / "lumvaleos-reconcile.py")
@@ -69,6 +68,37 @@ class ReconcileTests(unittest.TestCase):
                 self.assertEqual(os.environ["WORKSPACE_ROOT"], "C:/workspaces/ws-lumvale")
                 self.assertEqual(os.environ["WORKSPACE_LOCAL"], "C:/local/ws-lumvale")
                 self.assertEqual(os.environ["WORKSPACE_NAME"], "ws-lumvale")
+
+    def test_nearest_project_config_selects_its_workspace_before_user_default(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            project = base / "fleet" / "repo"
+            project.mkdir(parents=True)
+            engine = base / "lumvale-os"
+            engine.mkdir()
+            (engine / "lumvaleos.py").touch()
+            project_config = project.parent / ".codex" / "config.toml"
+            project_config.parent.mkdir()
+            project_config.write_text(
+                f'[mcp_servers.lumvaleos]\ncommand = "{engine.as_posix()}/lumvaleos.py"\n'
+                '[mcp_servers.lumvaleos.env]\nWORKSPACE_ROOT = "C:/workspaces/ws-lumvale"\n',
+                encoding="utf-8",
+            )
+            user_home = base / "codex-home"
+            user_home.mkdir()
+            (user_home / "config.toml").write_text(
+                f'[mcp_servers.lumvaleos]\ncommand = "{engine.as_posix()}/lumvaleos.py"\n'
+                '[mcp_servers.lumvaleos.env]\nWORKSPACE_ROOT = "C:/workspaces/ws-agentic-ide"\n',
+                encoding="utf-8",
+            )
+            environment = {"CODEX_HOME": str(user_home)}
+            with patch.dict(os.environ, environment, clear=False), \
+                 patch.object(RECONCILE.Path, "cwd", return_value=project):
+                os.environ.pop("AMIR_LOOP_CODEX_CONFIG", None)
+                os.environ.pop("LUMVALEOS_ROOT", None)
+                os.environ.pop("WORKSPACE_ROOT", None)
+                self.assertEqual(RECONCILE.lumvaleos_root(), engine)
+                self.assertEqual(os.environ["WORKSPACE_ROOT"], "C:/workspaces/ws-lumvale")
 
     def test_antigravity_output_uses_native_ephemeral_injection(self):
         result = type("Result", (), {"returncode": 0, "stdout": json.dumps({
