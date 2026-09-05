@@ -16,6 +16,10 @@ opt-in per project and version-controlled.
 
 ## Merge authority
 - <what the loop may merge unattended, and what it must escalate>
+- Treat `lumvale-os-workspaces/*`, including `ws-lumvale`, as reusable and distributed Workspace
+  storage, not as Lumvale product repositories. Do not create implementation PRs, drain their PR
+  queues, or file ordinary product work there unless the owner explicitly scopes that Workspace
+  repository into the direct request. A Git remote alone does not grant product-fleet scope.
 
 ## Definition of done
 - Capture verified findings and close out through LumvaleOS. Use ordinary local shell, test,
