@@ -36,6 +36,7 @@ class ReconcileTests(unittest.TestCase):
         with patch.object(RECONCILE, "lumvaleos_root", return_value=Path("engine")), \
              patch.object(RECONCILE, "interpreter", return_value=Path(sys.executable)), \
              patch.object(RECONCILE.subprocess, "run", side_effect=launch), \
+             patch.dict(os.environ, {"CODEX_THREAD_ID": "codex-test-thread"}, clear=False), \
              patch("sys.stdin", io.StringIO('{"hook_event_name":"SessionStart","session_id":"s1"}')), \
              patch("sys.stdout", new_callable=io.StringIO) as output:
             self.assertEqual(RECONCILE.main(), 0)
