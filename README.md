@@ -342,7 +342,10 @@ work over unfinished direct work.
 
 Per ADR-067, ordinary pull requests do not wait for runner-backed build or test CI. The agent runs
 the applicable local/static checks, self-reviews the exact head, pushes, creates or updates the pull
-request, and enables auto-merge for that reviewed head. A changed head must be revalidated.
+request, and merges that reviewed head automatically. It enables GitHub auto-merge when the
+repository plan supports it; otherwise it may immediately API-merge the reread exact head without
+adding an Actions workflow, making the repository public, or widening App permissions. A changed
+head must be revalidated.
 
 Hourly, nightly and weekly default-branch CI is asynchronous evidence for promotion, not a PR merge
 gate. Durable reconciliation records the merged SHA, tier, terminal criteria and follow-up actions;
