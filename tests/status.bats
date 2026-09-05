@@ -20,7 +20,32 @@ snapshot_claude() {
   cd "$BATS_TEST_TMPDIR"
   run bash "$STATUS" --json
   [ "$status" -eq 0 ]
-  jq -e '.schema_version == 1 and .state == "idle" and .session_count == 0 and .sessions == []' <<<"$output"
+  jq -e '.schema_version == 1 and .state == "idle" and .session_count == 0 and .sessions == [] and .worktree_claim.state == "unclaimed"' <<<"$output"
+}
+
+@test "status reports deterministic live and stale worktree claims" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude/.amir-loop-worktree-claim"
+  printf 'session-one\n' > "$BATS_TEST_TMPDIR/.claude/.amir-loop-worktree-claim/owner"
+  printf '100\n' > "$BATS_TEST_TMPDIR/.claude/.amir-loop-worktree-claim/heartbeat"
+  cd "$BATS_TEST_TMPDIR"
+  AMIR_LOOP_CLAIM_NOW=105 AMIR_LOOP_CLAIM_STALE_SECONDS=10 run bash "$STATUS" --json
+  jq -e '.worktree_claim == {state:"live",owner:"session-one",heartbeat_epoch:100,age_seconds:5,stale_after_seconds:10}' <<<"$output"
+  AMIR_LOOP_CLAIM_NOW=111 AMIR_LOOP_CLAIM_STALE_SECONDS=10 run bash "$STATUS"
+  echo "$output" | grep -q '^worktree claim: stale owner=session-one age=11s stale-after=10s$'
+}
+
+@test "status classifies malformed and future claims invalid without mutation" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude/.amir-loop-worktree-claim"
+  printf 'session-one\n' > "$BATS_TEST_TMPDIR/.claude/.amir-loop-worktree-claim/owner"
+  printf 'bad\n' > "$BATS_TEST_TMPDIR/.claude/.amir-loop-worktree-claim/heartbeat"
+  cd "$BATS_TEST_TMPDIR"
+  before="$(snapshot_claude)"
+  AMIR_LOOP_CLAIM_NOW=100 run bash "$STATUS" --json
+  jq -e '.worktree_claim.state == "invalid" and .worktree_claim.owner == "session-one"' <<<"$output"
+  [ "$before" = "$(snapshot_claude)" ]
+  printf '101\n' > "$BATS_TEST_TMPDIR/.claude/.amir-loop-worktree-claim/heartbeat"
+  AMIR_LOOP_CLAIM_NOW=100 run bash "$STATUS" --json
+  jq -e '.worktree_claim.state == "invalid" and .worktree_claim.age_seconds == -1' <<<"$output"
 }
 
 @test "json status returns deterministic per-session state" {

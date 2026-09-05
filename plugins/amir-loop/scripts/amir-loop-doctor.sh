@@ -44,6 +44,7 @@ diagnostic_code() {
     runtime\ target:*) echo runtime.target ;;
     Bedrock\ *) echo runtime.activation ;;
     *loop\ state*|legacy\ project-wide*|no\ loop\ armed*|kill\ switch*|AMIR_LOOP_OFF*) echo loop.state ;;
+    worktree\ claim:*) echo worktree.claim ;;
     cross-host\ copy*|cross-host\ parity:*) echo hooks.cross_host_parity ;;
     action\ provenance\ identity:*) echo provenance.identity ;;
     action\ provenance\ risk:*) echo provenance.risk ;;
@@ -64,6 +65,7 @@ diagnostic_remediation() {
     runtime.activation) echo "Expose the configured provider activation signal in the host session." ;;
     runtime.profile) echo "Repair amir-loop-runtime.json to the documented version 1 provider schema." ;;
     loop.state) echo "Remove the stale state or kill switch only after confirming the owning session is inactive." ;;
+    worktree.claim) echo "Preserve live claims; reclaim only well-formed claims beyond the configured stale threshold." ;;
     hooks.cross_host_parity) echo "Upgrade or reinstall Amir Loop on the named host, then compare hook hashes again." ;;
     provenance.ledger) echo "Repair the append-only provenance ledger before relying on attribution." ;;
     provenance.identity) echo "Configure the host to include model identity in future hook events." ;;
@@ -306,6 +308,29 @@ else
 fi
 [ -f "$PWD/.claude/amir-loop-off" ] && warn "kill switch present: .claude/amir-loop-off - the hook will not re-arm"
 [ "${AMIR_LOOP_OFF:-0}" = "1" ] && warn "AMIR_LOOP_OFF=1 is set in this environment"
+
+_claim="$PWD/.claude/.amir-loop-worktree-claim"
+_claim_now="${AMIR_LOOP_CLAIM_NOW:-$(date -u +%s)}"
+_claim_stale="${AMIR_LOOP_CLAIM_STALE_SECONDS:-604800}"
+if [ ! -d "$_claim" ]; then
+  ok "worktree claim: unclaimed"
+else
+  _claim_owner=$(cat "$_claim/owner" 2>/dev/null || true)
+  _claim_heartbeat=$(cat "$_claim/heartbeat" 2>/dev/null || true)
+  _claim_valid=1
+  case "$_claim_owner" in ''|*[!A-Za-z0-9._-]*) fail "worktree claim: invalid owner metadata"; _claim_valid=0 ;; esac
+  case "$_claim_heartbeat:$_claim_now:$_claim_stale" in *[!0-9:]*) fail "worktree claim: invalid heartbeat or clock metadata"; _claim_valid=0 ;; esac
+  if [ "$_claim_valid" -eq 1 ]; then
+      _claim_age=$((_claim_now - _claim_heartbeat))
+      if [ "$_claim_age" -lt 0 ]; then
+        fail "worktree claim: future-dated heartbeat for owner ${_claim_owner:-unknown}"
+      elif [ "$_claim_age" -gt "$_claim_stale" ]; then
+        warn "worktree claim: stale owner=$_claim_owner age=${_claim_age}s stale-after=${_claim_stale}s"
+      else
+        ok "worktree claim: live owner=$_claim_owner age=${_claim_age}s stale-after=${_claim_stale}s"
+      fi
+  fi
+fi
 
 # --- cross-host installation parity ---
 # Marketplace versions identify releases, but development installs and host caches can still

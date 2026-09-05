@@ -59,6 +59,24 @@ setup() {
   [ "$before" = "$after" ]
 }
 
+@test "doctor reports live stale and invalid worktree claims" {
+  project="$BATS_TEST_TMPDIR/project"
+  mkdir -p "$project/.claude/.amir-loop-worktree-claim"
+  printf 'session-one\n' > "$project/.claude/.amir-loop-worktree-claim/owner"
+  printf '100\n' > "$project/.claude/.amir-loop-worktree-claim/heartbeat"
+  cd "$project"
+  AMIR_LOOP_CLAIM_NOW=105 AMIR_LOOP_CLAIM_STALE_SECONDS=10 run bash "$DOCTOR" --json
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e 'any(.checks[]; .code == "worktree.claim" and .severity == "ok" and (.message | contains("live owner=session-one")))'
+  AMIR_LOOP_CLAIM_NOW=111 AMIR_LOOP_CLAIM_STALE_SECONDS=10 run bash "$DOCTOR" --json
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e 'any(.checks[]; .code == "worktree.claim" and .severity == "warn" and (.message | contains("stale owner=session-one")))'
+  printf 'bad\n' > "$project/.claude/.amir-loop-worktree-claim/heartbeat"
+  AMIR_LOOP_CLAIM_NOW=111 run bash "$DOCTOR" --json
+  [ "$status" -eq 1 ]
+  echo "$output" | jq -e 'any(.checks[]; .code == "worktree.claim" and .severity == "fail" and (.message | contains("invalid heartbeat")))'
+}
+
 @test "doctor JSON preserves deterministic check order and safely escapes paths" {
   project="$BATS_TEST_TMPDIR/project with \"quote"
   mkdir -p "$project/.claude"

@@ -257,6 +257,15 @@ policy hash in the session brief, while LumvaleOS re-evaluates capability author
 each server call. See [Workspace policy integration](docs/workspace-policy-integration.md).
 
 Loop state is isolated per host session as `.claude/amir-loop.<session>.local.md`.
+The worktree is also protected by an atomic `.claude/.amir-loop-worktree-claim/` directory.
+Campaign dispatchers must run `amir-loop-worktree-claim.sh acquire WORKTREE SESSION_ID` before
+assigning, resetting, or rebuilding a worktree, and proceed only on exit 0. Exit 73 is a live or
+unreadable collision and must select another worktree. Hooks refresh the owning claim on activity;
+well-formed claims older than `AMIR_LOOP_CLAIM_STALE_SECONDS` (seven days by default) may be
+atomically reclaimed, while malformed claims always fail closed.
+`amir-loop-status.sh --json` exposes the claim owner, heartbeat age, threshold, and
+`unclaimed|live|stale|invalid` classification; `amir-loop-doctor.sh` reports the same safety
+state so automation does not need to parse raw claim files.
 This prevents two chats rooted in the same workspace from inheriting or overwriting
 each other's goal. A manually armed loop is first written as `amir-loop.pending.local.md`
 and claimed by the next Stop event in that chat. Older project-wide
