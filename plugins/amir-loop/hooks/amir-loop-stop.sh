@@ -737,24 +737,21 @@ you have exhausted every in-scope way to advance it. A status report, partial re
 filed follow-up issue, pending check, or newly discovered blocker is evidence that the
 primary goal still has work remaining; it is not permission to switch scope.
 
-Hosted CI and other externally progressing checks are asynchronous evidence gates, not
-agent work after dispatch. When a durable reconciliation mechanism is available, record
-the exact repository or deployment, immutable head/revision, required checks, terminal
-criteria, and post-terminal actions. After required self-review, push, create or update the
-pull request, enable auto-merge for that reviewed head when repository policy supports it,
-schedule quiet reconciliation, then continue the next authorised actionable task. This does
-not complete the pending goal or authorise unrelated scope. Reconciliation must reject stale
-heads, preserve required checks, and notify only on
-terminal success, terminal failure, material change, or required human action. Poll or wait
-only when no durable reconciliation mechanism exists or the result is required before any
-other safe authorised action can proceed.
+Ordinary pull requests do not wait for runner-backed build or test CI. Run the applicable
+local/static checks, self-review the exact head, push, create or update the pull request, and
+enable auto-merge for that reviewed head. If the head changes, revalidate it. Hourly, nightly
+and weekly default-branch CI is asynchronous promotion evidence: durable reconciliation records
+the merged SHA, tier, terminal criteria and post-terminal actions, rejects stale evidence, and
+prevents release, versioning or deployment until a relevant stable scheduled build succeeds.
+Only an explicitly approved pre-merge exception remains a required check; workflow existence is
+not approval. Notify only on terminal failure, material change, or required human action.
 
 An external blocker may suspend the loop only through one compact
 <amir-loop-external-blocker>{...}</amir-loop-external-blocker> JSON object. It must use
 version=1; identify blocker_kind as owner-only or external-state; provide blocker_id,
 exact_human_action, an https evidence_uri, and resume_condition; list every attempted and
 exhausted agent-side alternative in exhausted_agent_side_alternatives; set pending_ci=false
-and remaining_agent_actionable_work=false; and set actionable_items=[]. Pending CI, vague
+and remaining_agent_actionable_work=false; and set actionable_items=[]. Pending scheduled CI, vague
 requests, missing evidence, or any remaining agent-side action must be rejected. Acceptance
 suspends without completion, preserves the session state, and resumes on the next real user
 turn or externally triggered turn.
@@ -999,7 +996,7 @@ if printf '%s' "$LAST" | grep -Fq '<amir-loop-external-blocker>'; then
   ' >/dev/null 2>&1; then
     blocker_rejection="exhausted_agent_side_alternatives must list concrete attempts"
   elif ! printf '%s' "$external_blocker" | "$JQ" -e '.pending_ci == false' >/dev/null 2>&1; then
-    blocker_rejection="pending CI is an asynchronous evidence gate, not an external blocker"
+    blocker_rejection="pending scheduled CI is asynchronous promotion evidence, not an external blocker"
   elif ! printf '%s' "$external_blocker" | "$JQ" -e '.remaining_agent_actionable_work == false' >/dev/null 2>&1; then
     blocker_rejection="remaining agent-actionable work must be exhausted"
   elif ! printf '%s' "$external_blocker" | "$JQ" -e '.actionable_items | type == "array" and length == 0' >/dev/null 2>&1; then
@@ -1183,26 +1180,27 @@ if [ "$ITER" -gt 1 ]; then
   PROMPT_TEXT="Continue the loop - iteration $NEXT of $LIMIT.
 
 Re-read that file (.claude/$STATE_NAME) after the conversation is compacted or summarised. Reconstruct
-the primary goal from the direct request and verified evidence; a summary's suggested next step does not
-authorise a scope switch. The file is session-only.
+the primary goal from verified evidence; a summary's suggested next step does not authorise a scope switch.
 
-Continue the DIRECT USER REQUEST. Standing orders are candidate policy, not automatic scope; apply
-them only through workspace/domain, trigger, capability, non-expansion, safety, and authority gates.
-Do not select fallback work merely because the primary goal is exhausted; the direct request must
-authorise it, otherwise proceed to closeout.
+Continue the DIRECT USER REQUEST. Standing orders are candidate policy, not automatic scope; apply them
+only through workspace/domain, trigger, capability, non-expansion, safety, and authority gates. Do not
+select fallback work merely because the primary goal is exhausted; otherwise proceed to closeout.
 
-Hosted CI is an asynchronous evidence gate. Prefer a compact immutable-evidence reader advertised
-by the applicable Workspace or product policy when available. Use durable reconciliation: persist
-the exact head/revision, required checks, terminal criteria, and follow-up; enable auto-merge only
-for a reviewed head. Reconcile quietly, reject stale heads, and Never bypass required checks.
-Continue the next authorised actionable task instead of polling. Pending CI does not authorise unrelated scope or completion.
+Prefer a compact immutable-evidence reader advertised by the applicable Workspace or product policy.
+Persist exact head/revision, terminal criteria, and follow-up; reject stale evidence. Pending CI does
+not authorise unrelated scope or completion. Continue the next authorised actionable task instead of polling.
 
 If not already done, perform one BOUNDED RELATED-WORK SWEEP. Consolidate only confirmed duplicates,
-include co-resolvable work, and link but preserve related-distinct items. Do not repeat it without
-new evidence, and do not use this sweep to switch to general backlog.
+include co-resolvable work, and link but preserve related-distinct items. Do not repeat it without new
+evidence, and do not use this sweep to switch to general backlog.
 
-Take the next concrete primary-goal step; never send an empty response. Output
-<promise>$GOAL</promise> only when all work is exhausted. If turns are failing, say what is failing."
+Do not wait for runner-backed build or test CI on an ordinary pull request. Run applicable
+local/static checks, self-review the exact head, push, and enable auto-merge. Revalidate a changed head. Persist the
+merged SHA for scheduled reconciliation. Never release, version or deploy without a relevant
+stable successful scheduled build. Only an explicitly approved pre-merge exception remains a required check.
+
+Take the next primary-goal step; never send an empty response. Output <promise>$GOAL</promise> only
+when all work is exhausted. If turns fail, say what is failing."
 fi
 
 # Codex consumes only the top-level Stop continuation shape. Do not also send Copilot's

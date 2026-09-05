@@ -356,24 +356,21 @@ exhausted. A status report, partial result, filed follow-up issue, pending check
 discovered blocker means this goal still has work remaining; it is not permission to
 switch scope.
 
-Hosted CI and other externally progressing checks are asynchronous evidence gates, not
-agent work after dispatch. When a durable reconciliation mechanism is available, record
-the exact repository or deployment, immutable head/revision, required checks, terminal
-criteria, and post-terminal actions. After required self-review, push, create or update the
-pull request, enable auto-merge for that reviewed head when repository policy supports it,
-schedule quiet reconciliation, then continue the next authorised actionable task. This does
-not complete the pending goal or authorise unrelated scope. Reconciliation must reject stale
-heads, preserve required checks, and notify only on
-terminal success, terminal failure, material change, or required human action. Poll or wait
-only when no durable reconciliation mechanism exists or the result is required before any
-other safe authorised action can proceed.
+Ordinary pull requests do not wait for runner-backed build or test CI. Run the applicable
+local/static checks, self-review the exact head, push, create or update the pull request, and
+enable auto-merge for that reviewed head. If the head changes, revalidate it. Hourly, nightly
+and weekly default-branch CI is asynchronous promotion evidence: durable reconciliation records
+the merged SHA, tier, terminal criteria and post-terminal actions, rejects stale evidence, and
+prevents release, versioning or deployment until a relevant stable scheduled build succeeds.
+Only an explicitly approved pre-merge exception remains a required check; workflow existence is
+not approval. Notify only on terminal failure, material change, or required human action.
 
 An external blocker may suspend the loop only through one compact
 <amir-loop-external-blocker>{...}</amir-loop-external-blocker> JSON object. It must use
 version=1; identify blocker_kind as owner-only or external-state; provide blocker_id,
 exact_human_action, an https evidence_uri, and resume_condition; list every attempted and
 exhausted agent-side alternative in exhausted_agent_side_alternatives; set pending_ci=false
-and remaining_agent_actionable_work=false; and set actionable_items=[]. Pending CI, vague
+and remaining_agent_actionable_work=false; and set actionable_items=[]. Pending scheduled CI, vague
 requests, missing evidence, or any remaining agent-side action must be rejected. Acceptance
 suspends without completion, preserves the session state, and resumes on the next real user
 turn or externally triggered turn.
