@@ -30,6 +30,14 @@ def root_from_server(command: str, arguments: list[Any] | None = None) -> Path |
     return None
 
 
+def adopt_workspace_environment(server: dict[str, Any]) -> None:
+    """Adopt the Workspace selected by the host's LumvaleOS registration."""
+    for key in ("WORKSPACE_ROOT", "WORKSPACE_LOCAL", "WORKSPACE_NAME"):
+        value = (server.get("env") or {}).get(key)
+        if value:
+            os.environ.setdefault(key, str(value))
+
+
 def lumvaleos_server(text: str) -> dict[str, Any]:
     """Read the one Codex TOML table needed by the startup adapter.
 
@@ -43,15 +51,23 @@ def lumvaleos_server(text: str) -> dict[str, Any]:
         import tomllib
     except ModuleNotFoundError:
         values: dict[str, Any] = {}
-        in_server = False
+        section = ""
         for raw in text.splitlines():
             line = raw.strip()
             if line.startswith("["):
-                in_server = line == "[mcp_servers.lumvaleos]"
+                section = line
                 continue
-            if not in_server or "=" not in line:
+            if section not in {"[mcp_servers.lumvaleos]", "[mcp_servers.lumvaleos.env]"} or "=" not in line:
                 continue
             key, literal = (part.strip() for part in line.split("=", 1))
+            if section == "[mcp_servers.lumvaleos.env]":
+                if key not in {"WORKSPACE_ROOT", "WORKSPACE_LOCAL", "WORKSPACE_NAME"}:
+                    continue
+                try:
+                    values.setdefault("env", {})[key] = ast.literal_eval(literal)
+                except (SyntaxError, ValueError):
+                    return {}
+                continue
             if key not in {"command", "args"}:
                 continue
             try:
@@ -79,6 +95,7 @@ def lumvaleos_root() -> Path | None:
     if config.is_file():
         try:
             server = lumvaleos_server(config.read_text(encoding="utf-8"))
+            adopt_workspace_environment(server)
             candidate = root_from_server(str(server.get("command", "")), server.get("args", []))
             if candidate and (candidate / "lumvaleos.py").is_file():
                 return candidate
@@ -94,8 +111,7 @@ def lumvaleos_root() -> Path | None:
         try:
             server = json.loads(antigravity_config.read_text(encoding="utf-8")).get(
                 "mcpServers", {}).get("lumvaleos", {})
-            for key, value in (server.get("env") or {}).items():
-                os.environ.setdefault(str(key), str(value))
+            adopt_workspace_environment(server)
             candidate = root_from_server(str(server.get("command", "")), server.get("args", []))
             if candidate and (candidate / "lumvaleos.py").is_file():
                 return candidate
