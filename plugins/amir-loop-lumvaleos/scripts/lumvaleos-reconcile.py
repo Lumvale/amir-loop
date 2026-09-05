@@ -7,6 +7,7 @@ receipts, and its Workspace-global singleton lease; Amir Loop never implements a
 
 from __future__ import annotations
 
+import ast
 import os
 from pathlib import Path
 import json
@@ -29,6 +30,42 @@ def root_from_server(command: str, arguments: list[Any] | None = None) -> Path |
     return None
 
 
+def lumvaleos_server(text: str) -> dict[str, Any]:
+    """Read the one Codex TOML table needed by the startup adapter.
+
+    Python 3.11+ owns the complete TOML grammar through ``tomllib``. The
+    self-hosted AL2023 runner still provides Python 3.9, so its compatibility
+    path deliberately recognizes only the literal ``command`` and ``args``
+    values inside ``[mcp_servers.lumvaleos]``. Unsupported shapes resolve to an
+    absent server and keep this optional wake-up hook fail open.
+    """
+    try:
+        import tomllib
+    except ModuleNotFoundError:
+        values: dict[str, Any] = {}
+        in_server = False
+        for raw in text.splitlines():
+            line = raw.strip()
+            if line.startswith("["):
+                in_server = line == "[mcp_servers.lumvaleos]"
+                continue
+            if not in_server or "=" not in line:
+                continue
+            key, literal = (part.strip() for part in line.split("=", 1))
+            if key not in {"command", "args"}:
+                continue
+            try:
+                values[key] = ast.literal_eval(literal)
+            except (SyntaxError, ValueError):
+                return {}
+        command = values.get("command")
+        arguments = values.get("args", [])
+        if not isinstance(command, str) or not isinstance(arguments, list):
+            return {}
+        return values
+    return tomllib.loads(text).get("mcp_servers", {}).get("lumvaleos", {})
+
+
 def lumvaleos_root() -> Path | None:
     explicit = os.environ.get("LUMVALEOS_ROOT")
     if explicit:
@@ -41,9 +78,7 @@ def lumvaleos_root() -> Path | None:
     ))
     if config.is_file():
         try:
-            import tomllib
-            server = tomllib.loads(config.read_text(encoding="utf-8")).get(
-                "mcp_servers", {}).get("lumvaleos", {})
+            server = lumvaleos_server(config.read_text(encoding="utf-8"))
             candidate = root_from_server(str(server.get("command", "")), server.get("args", []))
             if candidate and (candidate / "lumvaleos.py").is_file():
                 return candidate
