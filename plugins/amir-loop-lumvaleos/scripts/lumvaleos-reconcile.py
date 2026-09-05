@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wake LumvaleOS reconciliation without depending on a clock or host scheduler.
+"""Reconcile and claim Workspace work into the active agentic IDE session.
 
 The hook is intentionally a thin, fail-open signal. LumvaleOS owns due-ness, checkpointing,
 receipts, and its Workspace-global singleton lease; Amir Loop never implements a second scheduler.
@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import json
 import subprocess
 import sys
 from typing import Any
@@ -69,6 +70,37 @@ def interpreter(root: Path) -> Path:
     return Path(sys.executable)
 
 
+def hook_payload() -> dict[str, Any]:
+    try:
+        value = json.load(sys.stdin)
+        return value if isinstance(value, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def ide_name(environment: dict[str, str]) -> str:
+    if environment.get("CODEX_HOME") or environment.get("CODEX_THREAD_ID"):
+        return "codex"
+    if environment.get("CLAUDE_CODE") or environment.get("CLAUDE_SESSION_ID"):
+        return "claude-code"
+    return environment.get("AGENTIC_IDE", "unknown")
+
+
+def injected_context(claim: dict[str, Any], command_prefix: str = "lumvaleos scheduler") -> str:
+    token = str(claim["claim_token"])
+    return "\n".join([
+        f"LumvaleOS scheduled work `{claim['automation']}` has been exclusively claimed by this session.",
+        "Perform it now using the IDE's normal tools and authenticated capabilities:",
+        "",
+        str(claim["prompt"]),
+        "",
+        "Checkpoint only after verifying the outcome. On success run:",
+        f"{command_prefix} complete --claim {token} --status success --json",
+        "If the work fails or is blocked, run the same command with `--status failed`.",
+        "Do not end the turn while leaving the claim unreported.",
+    ])
+
+
 def main() -> int:
     root = lumvaleos_root()
     if root is None:
@@ -76,25 +108,29 @@ def main() -> int:
     python = interpreter(root)
     if not python.is_file():
         return 0
-    command = [str(python), str(root / "lumvaleos.py"), "scheduler", "run", "--json"]
     environment = os.environ.copy()
+    payload = hook_payload()
+    event = str(payload.get("hook_event_name") or payload.get("hookEventName") or
+                "SessionStart")
+    session = str(payload.get("session_id") or payload.get("sessionId") or
+                  payload.get("conversation_id") or environment.get("CODEX_THREAD_ID") or
+                  environment.get("CLAUDE_SESSION_ID") or "unknown")
+    scheduler = root / "modules" / "automation_scheduler" / "run_scheduler.py"
+    command = [str(python), str(scheduler), "activate",
+               "--ide", ide_name(environment), "--session", session, "--json"]
     try:
-        if environment.get("AMIR_LOOP_RECONCILE_FOREGROUND") == "1":
-            return subprocess.run(command, cwd=root, env=environment, check=False).returncode
-        flags = 0
-        if os.name == "nt":
-            flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
-        subprocess.Popen(
-            command,
-            cwd=root,
-            env=environment,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=os.name != "nt",
-            creationflags=flags,
-        )
-    except OSError:
+        result = subprocess.run(command, cwd=root, env=environment, check=False, text=True,
+                                capture_output=True, timeout=8)
+        response = json.loads(result.stdout) if result.returncode == 0 else {}
+        claim = response.get("claim") if isinstance(response, dict) else None
+        if isinstance(claim, dict):
+            command_prefix = f'"{python}" "{scheduler}"'
+            json.dump({"hookSpecificOutput": {"hookEventName": event,
+                                               "additionalContext": injected_context(
+                                                   claim, command_prefix)}},
+                      sys.stdout)
+            sys.stdout.write("\n")
+    except (OSError, subprocess.TimeoutExpired, ValueError):
         # Agent startup must remain usable if the optional local runtime is absent or broken.
         return 0
     return 0
