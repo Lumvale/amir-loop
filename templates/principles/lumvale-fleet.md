@@ -26,13 +26,15 @@ opt-in per project and version-controlled.
   review, and git tools for implementation; LumvaleOS governs knowledge, workflow, backlog,
   and evidence rather than replacing every engineering tool.
 - For material designs and changes, identify the load-bearing invariants and follow ADR-018's
-  risk-triggered assurance ladder. Reuse the LumvaleOS Code Property Graph for ASG, CFG/DFG,
-  PDG/VDG, call and points-to questions; report unresolved analysis as `unknown`. Apply contracts,
+  risk-triggered assurance ladder. Extend the existing LumvaleOS AST + call/import code-graph seam
+  for semantic, CFG/DFG, PDG/VDG, call and points-to questions; those richer views are gaps until
+  implemented, and unresolved analysis remains `unknown`. Apply contracts,
   PBT, mutation, fuzzing, deterministic simulation, symbolic/concolic analysis, abstract
   interpretation or finite-state model checking only when their failure-shape trigger fits, and
   record material omissions as deferred (owner + trigger), not-applicable (reason), or unknown.
   Formal evidence is bounded evidence about the model, not proof that production failure is
-  impossible; generated code and self-healing actions retain ordinary review and authority gates.
+  impossible; finite-state model checking requires a shared executable oracle with implementation
+  tests, and generated code and self-healing actions retain ordinary review and authority gates.
   When a canonical statechart exists, derive bounded, replayable MBT paths and drive an independent
   production adapter. BFS state reachability is not transition, transition-pair, variant or
   concurrency coverage; report each denominator and never use the implementation as its own oracle.

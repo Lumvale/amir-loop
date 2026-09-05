@@ -737,6 +737,12 @@ EOF
   run grep -q "risk-triggered assurance ladder" "$BATS_TEST_DIRNAME/../templates/principles/lumvale-fleet.md"
   [ "$status" -eq 0 ]
 
+  run grep -Fq "AST + call/import code-graph seam" "$BATS_TEST_DIRNAME/../templates/principles/lumvale-fleet.md"
+  [ "$status" -eq 0 ]
+
+  run grep -q "richer views are gaps until" "$BATS_TEST_DIRNAME/../templates/principles/lumvale-fleet.md"
+  [ "$status" -eq 0 ]
+
   run grep -q "Formal evidence is bounded evidence" "$BATS_TEST_DIRNAME/../templates/principles/lumvale-fleet.md"
   [ "$status" -eq 0 ]
 
