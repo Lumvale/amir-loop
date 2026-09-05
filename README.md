@@ -148,6 +148,12 @@ attribution only for actions observed after installation, and it never manufactu
 proof. Hooks are prevention and evidence controls, not an operating-system security boundary;
 restrict writable roots with the host sandbox or OS access controls when writes must be impossible.
 
+Agents and integrations can request a compact, stable diagnostic contract with
+`plugins/amir-loop/scripts/amir-loop-doctor.sh --json` or the Windows-native
+`amir-loop-doctor.ps1 -Json`. The schema reports ordered check codes, severities, actionable
+remediation, summary counts, and the resolved plugin version/root. Human output remains the
+default; JSON mode is read-only and does not enable repair actions.
+
 Every behavioral change must add or update regression coverage for all four hosts. A
 host-specific optimization is acceptable only when the shared invariant remains tested
 through every other host's native adapter or transcript shape.
