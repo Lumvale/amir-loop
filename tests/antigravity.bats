@@ -98,6 +98,13 @@ EOF
   [ ! -f "$BATS_TEST_TMPDIR/.claude/amir-loop.s1.local.md" ]
 }
 
+@test "Antigravity PreInvocation bridges Workspace claims through native injectSteps" {
+  grep -q 'amir-loop-lumvaleos\\scripts\\lumvaleos-reconcile.ps1' "$PLUGIN/hooks/amir-loop-antigravity.ps1"
+  grep -q "AMIR_LOOP_HOST_OUTPUT = 'antigravity'" "$PLUGIN/hooks/amir-loop-antigravity.ps1"
+  grep -q 'injectSteps' "$PLUGIN/hooks/amir-loop-antigravity.ps1"
+  grep -q '"ephemeralMessage"' "$BATS_TEST_DIRNAME/../plugins/amir-loop-lumvaleos/scripts/lumvaleos-reconcile.py"
+}
+
 @test "Antigravity post-tool adapters emit redacted parity events" {
   require_windows_adapter
   payload=$(jq -nc --arg ws "$WORKSPACE" \
