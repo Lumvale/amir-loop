@@ -181,6 +181,10 @@ Workspace job, checkpoints successful work, and uses one Workspace-global lease 
 agent sessions cannot run a second instance. No cron, Windows Task Scheduler, or GitHub scheduled
 workflow is required for local agentic work.
 
+The adapter adopts `WORKSPACE_ROOT`, `WORKSPACE_LOCAL`, and `WORKSPACE_NAME` from the host's
+LumvaleOS registration before activation. Opening Codex, Claude Code, or Antigravity therefore
+cannot silently claim schedules from a different ambient Workspace.
+
 > **The ordering is not optional, and appending is the common mistake.** `System32` ships its
 > own `bash.exe` (WSL) and normally precedes anything you add, so *appending* `Git\bin` leaves
 > `bash` resolving to WSL:

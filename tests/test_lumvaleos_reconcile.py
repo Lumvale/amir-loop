@@ -55,12 +55,19 @@ class ReconcileTests(unittest.TestCase):
             (root / "lumvaleos.py").touch()
             config = base / "config.toml"
             config.write_text(
-                f'[mcp_servers.lumvaleos]\ncommand = "{root.as_posix()}/lumvaleos.py"\n',
+                f'[mcp_servers.lumvaleos]\ncommand = "{root.as_posix()}/lumvaleos.py"\n'
+                '[mcp_servers.lumvaleos.env]\nWORKSPACE_ROOT = "C:/workspaces/ws-lumvale"\n'
+                'WORKSPACE_LOCAL = "C:/local/ws-lumvale"\nWORKSPACE_NAME = "ws-lumvale"\n',
                 encoding="utf-8",
             )
             with patch.dict(os.environ, {"AMIR_LOOP_CODEX_CONFIG": str(config)}, clear=False):
                 os.environ.pop("LUMVALEOS_ROOT", None)
+                for key in ("WORKSPACE_ROOT", "WORKSPACE_LOCAL", "WORKSPACE_NAME"):
+                    os.environ.pop(key, None)
                 self.assertEqual(RECONCILE.lumvaleos_root(), root)
+                self.assertEqual(os.environ["WORKSPACE_ROOT"], "C:/workspaces/ws-lumvale")
+                self.assertEqual(os.environ["WORKSPACE_LOCAL"], "C:/local/ws-lumvale")
+                self.assertEqual(os.environ["WORKSPACE_NAME"], "ws-lumvale")
 
     def test_antigravity_output_uses_native_ephemeral_injection(self):
         result = type("Result", (), {"returncode": 0, "stdout": json.dumps({
