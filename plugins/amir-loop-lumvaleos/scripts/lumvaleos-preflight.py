@@ -8,6 +8,7 @@ success. It calls only the authoritative read-only ``lumvaleos_preflight`` tool.
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import os
 from pathlib import Path
@@ -71,6 +72,40 @@ def root_from_server(command: str, arguments: list[Any] | None = None) -> Path |
     return None
 
 
+def codex_lumvaleos_server(text: str) -> dict[str, Any]:
+    """Read the configured server on Python 3.9 as well as Python 3.11+.
+
+    AL2023 currently supplies Python 3.9, which predates ``tomllib``. Its
+    compatibility path deliberately recognizes only the literal command and
+    args values needed for root discovery; unsupported TOML remains absent.
+    """
+    try:
+        import tomllib
+    except ModuleNotFoundError:
+        values: dict[str, Any] = {}
+        section = ""
+        for raw in text.splitlines():
+            line = raw.strip()
+            if line.startswith("["):
+                section = line
+                continue
+            if section != "[mcp_servers.lumvaleos]" or "=" not in line:
+                continue
+            key, literal = (part.strip() for part in line.split("=", 1))
+            if key not in {"command", "args"}:
+                continue
+            try:
+                values[key] = ast.literal_eval(literal)
+            except (SyntaxError, ValueError):
+                return {}
+        command = values.get("command")
+        arguments = values.get("args", [])
+        if not isinstance(command, str) or not isinstance(arguments, list):
+            return {}
+        return values
+    return tomllib.loads(text).get("mcp_servers", {}).get("lumvaleos", {})
+
+
 def configured_root() -> Path | None:
     for key in ("LUMVALEOS_ROOT",):
         if os.environ.get(key):
@@ -88,10 +123,7 @@ def configured_root() -> Path | None:
     )
     if codex_config.is_file():
         try:
-            import tomllib
-
-            data = tomllib.loads(codex_config.read_text(encoding="utf-8"))
-            server = data.get("mcp_servers", {}).get("lumvaleos", {})
+            server = codex_lumvaleos_server(codex_config.read_text(encoding="utf-8"))
             root = root_from_server(str(server.get("command", "")), server.get("args", []))
             if root:
                 return root
