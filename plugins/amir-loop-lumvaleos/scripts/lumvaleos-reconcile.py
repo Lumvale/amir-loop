@@ -51,6 +51,21 @@ def lumvaleos_root() -> Path | None:
             # An optional malformed or unreadable host config is treated as absent so discovery
             # can continue through the current working directory.
             pass
+
+    # Antigravity keeps MCP configuration in its Gemini customization root.  Reuse both
+    # the runtime command and Workspace environment from that authoritative registration.
+    antigravity_config = Path.home() / ".gemini" / "config" / "mcp_config.json"
+    if antigravity_config.is_file():
+        try:
+            server = json.loads(antigravity_config.read_text(encoding="utf-8")).get(
+                "mcpServers", {}).get("lumvaleos", {})
+            for key, value in (server.get("env") or {}).items():
+                os.environ.setdefault(str(key), str(value))
+            candidate = root_from_server(str(server.get("command", "")), server.get("args", []))
+            if candidate and (candidate / "lumvaleos.py").is_file():
+                return candidate
+        except (OSError, ValueError, TypeError):
+            pass
     current = Path.cwd().resolve()
     for candidate in (current, *current.parents):
         if (candidate / "lumvaleos.py").is_file():
@@ -125,10 +140,12 @@ def main() -> int:
         claim = response.get("claim") if isinstance(response, dict) else None
         if isinstance(claim, dict):
             command_prefix = f'"{python}" "{scheduler}"'
-            json.dump({"hookSpecificOutput": {"hookEventName": event,
-                                               "additionalContext": injected_context(
-                                                   claim, command_prefix)}},
-                      sys.stdout)
+            context = injected_context(claim, command_prefix)
+            if environment.get("AMIR_LOOP_HOST_OUTPUT") == "antigravity":
+                json.dump({"injectSteps": [{"ephemeralMessage": context}]}, sys.stdout)
+            else:
+                json.dump({"hookSpecificOutput": {"hookEventName": event,
+                                                   "additionalContext": context}}, sys.stdout)
             sys.stdout.write("\n")
     except (OSError, subprocess.TimeoutExpired, ValueError):
         # Agent startup must remain usable if the optional local runtime is absent or broken.

@@ -71,9 +71,36 @@ try {
         # from that transcript for exact-output contracts and also emits the idempotent
         # session.started/sparse-heartbeat pair. Both calls are best-effort and emit no
         # host instructions.
+        $canonicalPayload.hook_event_name = 'PreInvocation'
         $canonical = $canonicalPayload | ConvertTo-Json -Compress
         $null = $canonical | & $gitBash $hook '--observe=user-prompt' | Out-String
         $null = $canonical | & $gitBash $hook '--observe=session.started' | Out-String
+
+        # The companion owns Workspace due-ness and the single-IDE claim. Translate its
+        # claimed prompt to Antigravity's native PreInvocation injectSteps contract.
+        $pluginRoot = Split-Path -Parent $PSScriptRoot
+        $pluginsRoot = Split-Path -Parent $pluginRoot
+        $reconcile = Join-Path $pluginsRoot 'amir-loop-lumvaleos\scripts\lumvaleos-reconcile.ps1'
+        $injection = ''
+        if (Test-Path -LiteralPath $reconcile) {
+            $oldIde = $env:AGENTIC_IDE
+            $oldOutput = $env:AMIR_LOOP_HOST_OUTPUT
+            try {
+                $env:AGENTIC_IDE = 'google-antigravity'
+                $env:AMIR_LOOP_HOST_OUTPUT = 'antigravity'
+                $injection = $canonical | & $reconcile | Out-String
+            } catch { $injection = '' }
+            finally {
+                $env:AGENTIC_IDE = $oldIde
+                $env:AMIR_LOOP_HOST_OUTPUT = $oldOutput
+            }
+        }
+        if (-not [string]::IsNullOrWhiteSpace($injection)) {
+            try {
+                $parsed = $injection | ConvertFrom-Json -ErrorAction Stop
+                if ($parsed.injectSteps) { $parsed | ConvertTo-Json -Compress -Depth 6; exit 0 }
+            } catch { }
+        }
         '{}'
         exit 0
     }

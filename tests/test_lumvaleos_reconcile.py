@@ -62,6 +62,25 @@ class ReconcileTests(unittest.TestCase):
                 os.environ.pop("LUMVALEOS_ROOT", None)
                 self.assertEqual(RECONCILE.lumvaleos_root(), root)
 
+    def test_antigravity_output_uses_native_ephemeral_injection(self):
+        result = type("Result", (), {"returncode": 0, "stdout": json.dumps({
+            "claim": {"claim_token": "ag123", "automation": "rotation-quality",
+                      "prompt": "Run the quality rotation.", "expires_at": "later"},
+        })})()
+        with patch.object(RECONCILE, "lumvaleos_root", return_value=Path("engine")), \
+             patch.object(RECONCILE, "interpreter", return_value=Path(sys.executable)), \
+             patch.object(RECONCILE.subprocess, "run", return_value=result), \
+             patch.dict(os.environ, {"AMIR_LOOP_HOST_OUTPUT": "antigravity",
+                                     "AGENTIC_IDE": "google-antigravity"}, clear=False), \
+             patch("sys.stdin", io.StringIO(
+                 '{"hook_event_name":"PreInvocation","conversation_id":"ag-session"}')), \
+             patch("sys.stdout", new_callable=io.StringIO) as output:
+            self.assertEqual(RECONCILE.main(), 0)
+        payload = json.loads(output.getvalue())
+        context = payload["injectSteps"][0]["ephemeralMessage"]
+        self.assertIn("Run the quality rotation.", context)
+        self.assertIn("complete --claim ag123 --status success", context)
+
     def test_missing_explicit_engine_is_a_quiet_noop(self):
         with patch.dict(os.environ, {"LUMVALEOS_ROOT": "definitely-missing"}, clear=False):
             self.assertEqual(RECONCILE.main(), 0)
