@@ -21,6 +21,30 @@ opt-in per project and version-controlled.
   queues, or file ordinary product work there unless the owner explicitly scopes that Workspace
   repository into the direct request. A Git remote alone does not grant product-fleet scope.
 
+## Before you believe an instrument
+- **Run a control before believing a ZERO.** Anything that can answer "nothing found" can answer it
+  because it broke, and here the two are usually byte-identical: `gh search issues` exits 0 on an
+  empty index, so `board.search` returned `matched: 0` with `errors: {}` and `passes.search: "ok"`.
+  Measured 2026-09-06: three consecutive searches returned 0 and were one step from being read as an
+  empty board. Ask the same instrument something whose answer you already know before a zero becomes
+  a finding.
+- **Ask the registry at the moment you reach for the shell, not when you plan.** The trigger is an
+  action — *"I am about to write a script"*, *"I am about to derive a fact about a repo, the fleet,
+  the board or CI from raw `gh`/`git` output"* — not a category you have to classify the work into.
+  Call `capability.suggest_for_task` with the task in your own words and read its `hazards` block,
+  not only its suggestions.
+- **An instrument that is a repo SCRIPT is invisible to the registry.** `lumvale-infra` alone carries
+  `check-gate-reachability.mjs`, `check-gates-wired.mjs` and `audit-fleet-workflow-surfaces.mjs`, none
+  of which any capability query returns. Grep `scripts/` in the owning repository before concluding
+  the estate cannot answer your question.
+- **Project your fields on any listing call.** `board.actionable {limit: 400}` returned 159,718
+  characters on one line and took four follow-up reads to recover about twenty rows. Pass `fields`
+  where it exists, `--jq` where you are driving `gh` directly, and file the absence where neither does.
+- **Read `origin/main`, not your checkout.** Every number here is about the default branch, and
+  working trees in this fleet run 12-45 commits behind. A pass that measured CI triggers from the
+  working tree got 4/15 where the truth was 6/29. Re-fetch, then compare the local `origin/main` SHA
+  against `repos/Lumvale/<repo>/commits/main` before publishing a number.
+
 ## Definition of done
 - Capture verified findings and close out through LumvaleOS. Use ordinary local shell, test,
   review, and git tools for implementation; LumvaleOS governs knowledge, workflow, backlog,
