@@ -1,5 +1,13 @@
 name: tests
-on: [push, workflow_dispatch]
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   bats:
     strategy:
@@ -23,10 +31,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Assert Amir Loop plugin changes bump the Codex cache version
-        if: github.event_name == 'pull_request'
+        if: runner.os == 'Linux'
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BASE_SHA: ${{ github.event.before }}
         run: |
+          if [[ "$EVENT_NAME" == "push" && "$PUSH_BASE_SHA" != "0000000000000000000000000000000000000000" ]]; then
+            BASE_SHA="$PUSH_BASE_SHA"
+          else
+            BASE_SHA="HEAD^"
+          fi
           git fetch --no-tags --depth=1 origin "$BASE_SHA"
           scripts/check-codex-plugin-version-bump.sh "$BASE_SHA"
       - name: Install bats

@@ -348,7 +348,10 @@ adding an Actions workflow, making the repository public, or widening App permis
 head must be revalidated.
 
 Hourly, nightly and weekly default-branch CI is asynchronous evidence for promotion, not a PR merge
-gate. Durable reconciliation records the merged SHA, tier, terminal criteria and follow-up actions;
+gate. The repository test workflow therefore starts automatically only for pushes to `main` (or by
+an explicit manual dispatch), retains its Linux/macOS/Windows matrix, and cancels an older run for
+the same ref when newer evidence supersedes it. Durable reconciliation records the merged SHA,
+tier, terminal criteria and follow-up actions;
 it rejects stale evidence and prevents release, versioning or deployment until a relevant stable
 scheduled build succeeds. An explicitly approved pre-merge exception remains fail-closed, but an
 existing workflow or required context is not itself approval. Notifications are reserved for
