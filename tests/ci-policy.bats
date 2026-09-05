@@ -33,6 +33,9 @@ setup() {
   run grep -F "cancel-in-progress: true" "$WORKFLOW"
   [ "$status" -eq 0 ]
 
+  run grep -F "contents: read" "$WORKFLOW"
+  [ "$status" -eq 0 ]
+
   run grep -F "on: [push" "$WORKFLOW"
   [ "$status" -ne 0 ]
 }
