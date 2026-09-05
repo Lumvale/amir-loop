@@ -277,9 +277,12 @@ Never put credentials in this file. Report the repair and output
 fi
 
 if [ "$CANCEL" = "1" ]; then
-  rm -f .claude/amir-loop.local.md .claude/amir-loop.pending.local.md .claude/amir-loop.*.local.md
+  # The kill switch is project-wide, but session state is owned by the session holding the
+  # worktree claim. Preserve it: deleting every amir-loop.* file here allowed one chat to reset
+  # another live chat's iteration counter and goal. Pending/legacy state has no live owner.
+  rm -f .claude/amir-loop.local.md .claude/amir-loop.pending.local.md
   : > "$OFF"
-  echo "Amir Loop cancelled. The Stop hook will not re-arm in this project."
+  echo "Amir Loop cancelled. The Stop hook will not re-arm in this project; session state was preserved."
   echo "Run the start command again (or delete $OFF) to re-enable it."
   exit 0
 fi

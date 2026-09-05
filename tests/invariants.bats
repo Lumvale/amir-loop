@@ -226,7 +226,7 @@ EOF
   ! echo "$output" | grep -q "LEGACY OLDEST-BOARD GOAL MUST NOT LEAK"
 }
 
-@test "concurrent sessions receive independent loop state" {
+@test "a second session cannot arm in a worktree claimed by the first" {
   use_fixture vscode-copilot.jsonl
   run run_hook
   [ "$status" -eq 0 ]
@@ -234,9 +234,9 @@ EOF
 
   run bash -c "jq -n --arg cwd '$BATS_TEST_TMPDIR' --arg tp '$TRANSCRIPT' '{cwd: \$cwd, session_id: \"s2\", transcript_path: \$tp}' | bash '$HOOK'"
   [ "$status" -eq 0 ]
-  [ -f "$BATS_TEST_TMPDIR/.claude/amir-loop.s2.local.md" ]
+  [ ! -f "$BATS_TEST_TMPDIR/.claude/amir-loop.s2.local.md" ]
   grep -q 'session_id: "s1"' "$BATS_TEST_TMPDIR/.claude/amir-loop.s1.local.md"
-  grep -q 'session_id: "s2"' "$BATS_TEST_TMPDIR/.claude/amir-loop.s2.local.md"
+  grep -q '^s1$' "$BATS_TEST_TMPDIR/.claude/.amir-loop-worktree-claim/owner"
 }
 
 @test "marker with unchanged human turn count allows the stop" {

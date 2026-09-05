@@ -35,6 +35,16 @@ SETUP="$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-setup.sh"
   [ -f "$BATS_TEST_TMPDIR/.claude/amir-loop-off" ]
 }
 
+@test "setup: project cancellation preserves live session state" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  printf 'live session work\n' > "$BATS_TEST_TMPDIR/.claude/amir-loop.live.local.md"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$SETUP" --cancel
+  [ "$status" -eq 0 ]
+  grep -q 'live session work' "$BATS_TEST_TMPDIR/.claude/amir-loop.live.local.md"
+  [ -f "$BATS_TEST_TMPDIR/.claude/amir-loop-off" ]
+}
+
 @test "setup: -h alone still prints help" {
   cd "$BATS_TEST_TMPDIR"
   run bash "$SETUP" -h
