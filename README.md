@@ -357,10 +357,13 @@ adding an Actions workflow, making the repository public, or widening App permis
 head must be revalidated.
 
 Hourly, nightly and weekly default-branch CI is asynchronous evidence for promotion, not a PR merge
-gate. The repository test workflow therefore starts automatically only for pushes to `main` (or by
-an explicit manual dispatch), retains its Linux/macOS/Windows matrix, and cancels an older run for
-the same ref when newer evidence supersedes it. Durable reconciliation records the merged SHA,
-tier, terminal criteria and follow-up actions;
+gate. The build/test authority is `Lumvale/lumvale-infra` **Fleet Build** (stable workflow file
+`fleet-scheduler.yml`), which selects changed applicable repositories across both organizations and
+drains one concurrency-2 queue on one ephemeral runner. Durable reconciliation records the merged
+SHA, tier, terminal criteria and follow-up actions. It reads Fleet Build's per-repository result,
+checkpoint and exact-SHA receipt; it never dispatches the product's old workflow after merge.
+A repository absent from a run is UNKNOWN until applicability, elapsed tier window, current HEAD and
+last successful checkpoint are reconciled.
 it rejects stale evidence and prevents release, versioning or deployment until a relevant stable
 scheduled build succeeds. An explicitly approved pre-merge exception remains fail-closed, but an
 existing workflow or required context is not itself approval. Notifications are reserved for
