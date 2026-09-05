@@ -48,8 +48,15 @@ if [ "$JSON" -eq 1 ]; then
     exit 0
   fi
 
-  if [ "${#SESSION_STATES[@]}" -eq 0 ] && [ -f "$S" ]; then
-    SESSION_STATES=("$S")
+  # Bash 3 (the macOS runner's system Bash) treats an empty array expansion as unbound under
+  # `set -u`. Test the optional first element instead, and return before expanding an empty array.
+  if [ -z "${SESSION_STATES[0]-}" ]; then
+    if [ -f "$S" ]; then
+      SESSION_STATES=("$S")
+    else
+      printf '%s\n' '{"schema_version":1,"state":"idle","session_count":0,"sessions":[]}'
+      exit 0
+    fi
   fi
 
   sessions='[]'
