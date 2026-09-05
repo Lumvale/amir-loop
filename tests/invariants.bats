@@ -353,6 +353,74 @@ EOF
   [ ! -f "$BATS_TEST_TMPDIR/.claude/.amir-loop-closeout-s1.json" ]
 }
 
+@test "closeout accepts id-keyed object dependencies in phase one" {
+  arm_state 1 10
+  closeout='<amir-loop-closeout>{"version":1,"direct_goal_exhausted":true,"continuation_escape":false,"actionable_items":[],"pending":{"pr":false,"test":false,"migration":false,"deployment":false,"cutover":false,"follow_up":false,"verification":false},"dependencies":{"lumvaleos":{"required":true,"status":"healthy","checked_at":"2026-08-31T00:00:00Z","evidence_id":"preflight:ok"}},"playbook":{"status":"none","dispatcher_terminal":true}}</amir-loop-closeout>'
+  CODEX_LAST_ASSISTANT="$closeout" run run_codex_hook
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+  nonce=$(jq -r '.nonce' "$BATS_TEST_TMPDIR/.claude/.amir-loop-closeout-s1.json")
+  [ -n "$nonce" ]
+
+  CODEX_LAST_ASSISTANT="<amir-loop-confirm>$nonce</amir-loop-confirm><promise>AMIR LOOP COMPLETE</promise>" run run_codex_hook
+  [ "$status" -eq 0 ]; [ -z "$output" ]
+  [ ! -f "$TEST_STATE" ]
+}
+
+@test "closeout handles multiline JSON format across lines" {
+  arm_state 1 10
+  closeout=$(cat <<'EOF'
+<amir-loop-closeout>
+{
+  "version": 1,
+  "direct_goal_exhausted": true,
+  "continuation_escape": false,
+  "actionable_items": [],
+  "pending": {
+    "pr": false,
+    "test": false,
+    "migration": false,
+    "deployment": false,
+    "cutover": false,
+    "follow_up": false,
+    "verification": false
+  },
+  "dependencies": {
+    "lumvaleos": {
+      "required": true,
+      "healthy": true,
+      "checked_at": "2026-08-31T00:00:00Z",
+      "evidence_id": "preflight:ok"
+    }
+  },
+  "playbook": {
+    "status": "none",
+    "dispatcher_terminal": true
+  }
+}
+</amir-loop-closeout>
+EOF
+)
+  CODEX_LAST_ASSISTANT="$closeout" run run_codex_hook
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+  nonce=$(jq -r '.nonce' "$BATS_TEST_TMPDIR/.claude/.amir-loop-closeout-s1.json")
+  [ -n "$nonce" ]
+}
+
+@test "invalid closeout reports specific clause failure instead of silent fallthrough" {
+  arm_state 1 10
+  closeout='<amir-loop-closeout>{"version":1,"direct_goal_exhausted":false,"continuation_escape":false,"actionable_items":[],"pending":{"pr":false,"test":false,"migration":false,"deployment":false,"cutover":false,"follow_up":false,"verification":false},"dependencies":[],"playbook":{"status":"none","dispatcher_terminal":true}}</amir-loop-closeout>'
+  CODEX_LAST_ASSISTANT="$closeout" run run_codex_hook
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+  reason=$(echo "$output" | jq -r '.reason')
+  echo "$reason" | grep -q "Closeout proposal rejected: direct_goal_exhausted must be true"
+  ! echo "$reason" | grep -q "Continue the loop - iteration"
+  [ ! -f "$BATS_TEST_TMPDIR/.claude/.amir-loop-closeout-s1.json" ]
+}
+
+
 external_blocker_json() {
   jq -nc '{version:1,blocker_kind:"owner-only",blocker_id:"github-app-permission-50",exact_human_action:"Set the GitHub App Actions permission to Read and write and approve the installation update.",evidence_uri:"https://github.com/Lumvale/amir-loop/issues/50",resume_condition:"When the installation permission read-back reports Actions write access.",exhausted_agent_side_alternatives:["Verified the current permission through the GitHub API.","Confirmed the app owner must approve this permission change."],pending_ci:false,remaining_agent_actionable_work:false,actionable_items:[]}'
 }

@@ -960,9 +960,16 @@ esac
 # failures. The schema proves that no agent-side action remains; deterministic rejection keeps
 # malformed, vague, pending-CI, and soft-blocker claims from becoming an escape hatch.
 if printf '%s' "$LAST" | grep -Fq '<amir-loop-external-blocker>'; then
-  external_blocker=$(printf '%s' "$LAST" | sed -n 's|.*<amir-loop-external-blocker>\(.*\)</amir-loop-external-blocker>.*|\1|p' | tail -n 1)
+  external_blocker=$(printf '%s' "$LAST" | "$JQ" -Rs '
+    split("<amir-loop-external-blocker>") |
+    if length > 1 then
+      (.[1:] | join("<amir-loop-external-blocker>") | split("</amir-loop-external-blocker>") | if length > 1 then (.[0:-1] | join("</amir-loop-external-blocker>")) else empty end)
+    else empty end
+  ' 2>/dev/null | "$JQ" -r '. // empty' 2>/dev/null || true)
   blocker_rejection=""
-  if [ -z "$external_blocker" ] || ! printf '%s' "$external_blocker" | "$JQ" -e 'type == "object"' >/dev/null 2>&1; then
+  if [ -z "$external_blocker" ]; then
+    blocker_rejection="missing closing </amir-loop-external-blocker> tag"
+  elif ! printf '%s' "$external_blocker" | "$JQ" -e 'type == "object"' >/dev/null 2>&1; then
     blocker_rejection="malformed JSON object"
   elif ! printf '%s' "$external_blocker" | "$JQ" -e '.version == 1' >/dev/null 2>&1; then
     blocker_rejection="version must be 1"
@@ -1040,44 +1047,103 @@ if [ -n "$GOAL" ] && [ "$GOAL" != "null" ]; then
   # Phase 1: extract one compact JSON object and validate every deterministic closeout
   # field. A proposal containing the promise is rejected: one response cannot perform
   # both phases. Required dependencies and dispatcher claims must already be terminal.
-  closeout=$(printf '%s' "$LAST" | sed -n 's|.*<amir-loop-closeout>\(.*\)</amir-loop-closeout>.*|\1|p' | tail -n 1)
-  if [ -n "$closeout" ] && ! printf '%s' "$LAST" | grep -Fq "<promise>$GOAL</promise>"; then
-    if printf '%s' "$closeout" | "$JQ" -e '
-      .version == 1 and .direct_goal_exhausted == true and
-      .continuation_escape == false and
-      (.actionable_items | type == "array" and length == 0) and
+  if printf '%s' "$LAST" | grep -Fq '<amir-loop-closeout>'; then
+    if printf '%s' "$LAST" | grep -Fq "<promise>$GOAL</promise>"; then
+      PROMPT_TEXT="Completion was not accepted because a promise token cannot accompany the phase-one closeout proposal. Continue the direct user goal. When all work is genuinely exhausted, first submit one compact JSON object as <amir-loop-closeout>{...}</amir-loop-closeout> without the promise. Do not include the promise in phase one."
+      if [ -n "$TURN_ID" ]; then
+        "$JQ" -n --arg prompt "$PROMPT_TEXT" --arg msg "Amir Loop rejected unverified completion promise" \
+          '{decision: "block", reason: $prompt, systemMessage: $msg}'
+      else
+        "$JQ" -n --arg prompt "$PROMPT_TEXT" --arg msg "Amir Loop rejected unverified completion promise" \
+          '{decision: "block", reason: $prompt, systemMessage: $msg,
+            hookSpecificOutput: {hookEventName: "Stop", decision: "block", reason: $prompt}}'
+      fi
+      exit 0
+    fi
+
+    closeout=$(printf '%s' "$LAST" | "$JQ" -Rs '
+      split("<amir-loop-closeout>") |
+      if length > 1 then
+        (.[1:] | join("<amir-loop-closeout>") | split("</amir-loop-closeout>") | if length > 1 then (.[0:-1] | join("</amir-loop-closeout>")) else empty end)
+      else empty end
+    ' 2>/dev/null | "$JQ" -r '. // empty' 2>/dev/null || true)
+
+    closeout_rejection=""
+    if [ -z "$closeout" ]; then
+      closeout_rejection="missing closing </amir-loop-closeout> tag"
+    elif ! printf '%s' "$closeout" | "$JQ" -e 'type == "object"' >/dev/null 2>&1; then
+      closeout_rejection="malformed JSON object"
+    elif ! printf '%s' "$closeout" | "$JQ" -e '.version == 1' >/dev/null 2>&1; then
+      closeout_rejection="version must be 1"
+    elif ! printf '%s' "$closeout" | "$JQ" -e '.direct_goal_exhausted == true' >/dev/null 2>&1; then
+      closeout_rejection="direct_goal_exhausted must be true"
+    elif ! printf '%s' "$closeout" | "$JQ" -e '.continuation_escape == false' >/dev/null 2>&1; then
+      closeout_rejection="continuation_escape must be false"
+    elif ! printf '%s' "$closeout" | "$JQ" -e '.actionable_items | type == "array" and length == 0' >/dev/null 2>&1; then
+      closeout_rejection="actionable_items must be an empty array"
+    elif ! printf '%s' "$closeout" | "$JQ" -e '
       (.pending | type == "object") and
       ([.pending.pr, .pending.test, .pending.migration, .pending.deployment,
         .pending.cutover, .pending.follow_up, .pending.verification] |
-        all(. == false or . == null or . == [])) and
-      ((.dependencies | type == "array" and all(.[];
+        all(. == false or . == null or . == []))
+    ' >/dev/null 2>&1; then
+      closeout_rejection="pending must be an object with pr, test, migration, deployment, cutover, follow_up, and verification false"
+    elif ! printf '%s' "$closeout" | "$JQ" -e '
+      ((.dependencies | type == "array") and all(.dependencies[];
         .required != true or
-        (.status == "healthy" and (.evidence_id | type == "string" and length > 0) and
+        ((.status == "healthy" or .healthy == true) and (.evidence_id | type == "string" and length > 0) and
          (.checked_at | type == "string" and length > 0)))) or
-       (.dependencies | type == "object" and all(.[];
+      ((.dependencies | type == "object") and all(.dependencies[];
         .required != true or
-        (.status == "healthy" and (.evidence_id | type == "string" and length > 0) and
-         (.checked_at | type == "string" and length > 0))))) and
+        ((.status == "healthy" or .healthy == true) and (.evidence_id | type == "string" and length > 0) and
+         (.checked_at | type == "string" and length > 0))))
+    ' >/dev/null 2>&1; then
+      closeout_rejection="dependencies must be an array or object with each required dependency healthy, checked_at, and evidence_id"
+    elif ! printf '%s' "$closeout" | "$JQ" -e '
       (.playbook | type == "object") and
       (.playbook.status == "none" or
        ((.playbook.status == "completed" or .playbook.status == "failed") and
         .playbook.dispatcher_terminal == true and
         (.playbook.receipt_id | type == "string" and length > 0)))
     ' >/dev/null 2>&1; then
-      nonce=$(printf '%s:%s:%s:%s' "$SESSION_KEY" "$TURN_ID" "$ITER" "$(date -u +%s%N 2>/dev/null || date -u +%s)" |
-        sha256sum 2>/dev/null | cut -c1-24)
-      [ -n "$nonce" ] || nonce="${SESSION_KEY}-${ITER}-$(date -u +%s)"
-      printf '%s' "$closeout" | "$JQ" --arg nonce "$nonce" --arg staged_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-        '. + {nonce: $nonce, staged_at: $staged_at}' > "$CLOSEOUT_FILE" 2>/dev/null || allow_stop
-      CLOSEOUT_PROMPT="The closeout proposal passed deterministic phase-one validation. Before confirming, re-check the preceding answer and current repository/dispatcher state: no actionable item, PR, test, migration, deployment, cutover, follow-up, verification, required dependency, or leased playbook may remain. If that remains true, reply with exactly these two tokens and no status report:
+      closeout_rejection="playbook must be an object with status none or dispatcher-terminal completed/failed with receipt_id"
+    fi
+
+    if [ -n "$closeout_rejection" ]; then
+      CLOSEOUT_REJECTION_PROMPT="Closeout proposal rejected: $closeout_rejection. Continue the direct user goal. When all work is genuinely exhausted, submit a valid <amir-loop-closeout>{...}</amir-loop-closeout> object. Do not include the promise in phase one."
+      if [ -n "$TURN_ID" ]; then
+        "$JQ" -n --arg prompt "$CLOSEOUT_REJECTION_PROMPT" \
+          --arg msg "Amir Loop closeout rejected | $closeout_rejection" \
+          '{decision: "block", reason: $prompt, systemMessage: $msg}'
+      else
+        "$JQ" -n --arg prompt "$CLOSEOUT_REJECTION_PROMPT" \
+          --arg msg "Amir Loop closeout rejected | $closeout_rejection" \
+          '{decision: "block", reason: $prompt, systemMessage: $msg,
+            hookSpecificOutput: {hookEventName: "Stop", decision: "block", reason: $prompt}}'
+      fi
+      exit 0
+    fi
+
+    nonce=$(printf '%s:%s:%s:%s' "$SESSION_KEY" "$TURN_ID" "$ITER" "$(date -u +%s%N 2>/dev/null || date -u +%s)" |
+      sha256sum 2>/dev/null | cut -c1-24)
+    [ -n "$nonce" ] || nonce="${SESSION_KEY}-${ITER}-$(date -u +%s)"
+    printf '%s' "$closeout" | "$JQ" --arg nonce "$nonce" --arg staged_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      '. + {nonce: $nonce, staged_at: $staged_at}' > "$CLOSEOUT_FILE" 2>/dev/null || allow_stop
+    CLOSEOUT_PROMPT="The closeout proposal passed deterministic phase-one validation. Before confirming, re-check the preceding answer and current repository/dispatcher state: no actionable item, PR, test, migration, deployment, cutover, follow-up, verification, required dependency, or leased playbook may remain. If that remains true, reply with exactly these two tokens and no status report:
 <amir-loop-confirm>$nonce</amir-loop-confirm>
 <promise>$GOAL</promise>
 If anything remains, do not confirm; continue the next concrete action and later submit a fresh <amir-loop-closeout> proposal."
+    if [ -n "$TURN_ID" ]; then
       "$JQ" -n --arg prompt "$CLOSEOUT_PROMPT" \
         --arg msg "Amir Loop closeout phase 2 | independent confirmation required" \
         '{decision: "block", reason: $prompt, systemMessage: $msg}'
-      exit 0
+    else
+      "$JQ" -n --arg prompt "$CLOSEOUT_PROMPT" \
+        --arg msg "Amir Loop closeout phase 2 | independent confirmation required" \
+        '{decision: "block", reason: $prompt, systemMessage: $msg,
+          hookSpecificOutput: {hookEventName: "Stop", decision: "block", reason: $prompt}}'
     fi
+    exit 0
   fi
 
   # A bare promise is the supplied false-completion regression. Keep the state and make
@@ -1085,8 +1151,14 @@ If anything remains, do not confirm; continue the next concrete action and later
   case "$LAST" in
     *"<promise>$GOAL</promise>"*)
       PROMPT_TEXT="Completion was not accepted because a promise token is not evidence. Continue the direct user goal. When all work is genuinely exhausted, first submit one compact JSON object as <amir-loop-closeout>{...}</amir-loop-closeout> with version=1, direct_goal_exhausted=true, continuation_escape=false, actionable_items=[], every pending field (pr, test, migration, deployment, cutover, follow_up, verification) false, each required dependency healthy with checked_at and evidence_id, and playbook status none or dispatcher-terminal completed/failed with receipt_id. Do not include the promise in phase one."
-      "$JQ" -n --arg prompt "$PROMPT_TEXT" --arg msg "Amir Loop rejected unverified completion promise" \
-        '{decision: "block", reason: $prompt, systemMessage: $msg}'
+      if [ -n "$TURN_ID" ]; then
+        "$JQ" -n --arg prompt "$PROMPT_TEXT" --arg msg "Amir Loop rejected unverified completion promise" \
+          '{decision: "block", reason: $prompt, systemMessage: $msg}'
+      else
+        "$JQ" -n --arg prompt "$PROMPT_TEXT" --arg msg "Amir Loop rejected unverified completion promise" \
+          '{decision: "block", reason: $prompt, systemMessage: $msg,
+            hookSpecificOutput: {hookEventName: "Stop", decision: "block", reason: $prompt}}'
+      fi
       exit 0
       ;;
   esac
