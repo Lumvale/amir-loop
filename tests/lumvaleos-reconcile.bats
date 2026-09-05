@@ -1,5 +1,7 @@
 @test "native adapter unit contract passes on this host" {
-  run python "$BATS_TEST_DIRNAME/test_lumvaleos_reconcile.py"
+  python_cmd=python3
+  command -v "$python_cmd" >/dev/null 2>&1 || python_cmd=python
+  run "$python_cmd" "$BATS_TEST_DIRNAME/test_lumvaleos_reconcile.py"
   [ "$status" -eq 0 ]
 }
 
