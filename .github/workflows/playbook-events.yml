@@ -1,7 +1,5 @@
 name: LumvaleOS playbook events
 on:
-  pull_request:
-    types: [opened, reopened, closed]
   deployment_status:
   issues:
     types: [opened]
