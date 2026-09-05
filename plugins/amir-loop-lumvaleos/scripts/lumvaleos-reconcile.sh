@@ -6,5 +6,5 @@ if [ -z "$PYTHON" ]; then
   PYTHON=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)
 fi
 [ -n "$PYTHON" ] || exit 0
-"$PYTHON" "$SCRIPT_DIR/lumvaleos-reconcile.py" >/dev/null 2>&1 || true
+"$PYTHON" "$SCRIPT_DIR/lumvaleos-reconcile.py" 2>/dev/null || true
 exit 0

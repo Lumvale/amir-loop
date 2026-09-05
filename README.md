@@ -121,7 +121,7 @@ dispatcher closeout. Adapters may translate payload and decision shapes only.
 |---|---|---|---|---|
 | Two-phase completion and false-promise rejection | shared Stop | shared Stop | shared Stop with stable final-message field | shared Stop through native adapter |
 | Exact-output user contract | UserPromptSubmit | UserPromptSubmit | UserPromptSubmit | latest user message derived during native PreInvocation |
-| Startup reconciliation and sparse heartbeat | SessionStart | SessionStart | SessionStart | idempotent native PreInvocation |
+| Startup reconciliation, single-IDE claim, and prompt injection | SessionStart | SessionStart | SessionStart | idempotent native PreInvocation |
 | Source/test/environment/learning observations | governed PostToolUse | governed PostToolUse | governed PostToolUse | native matcher groups translated to redacted shared observations |
 | Prospective action attribution | shared pre/post-tool ledger | shared pre/post-tool ledger | stable turn plus shared pre/post-tool ledger | native metadata translated to the shared ledger |
 | Runtime/dependency profiles and Bedrock retry policy | shared | shared | shared | shared |

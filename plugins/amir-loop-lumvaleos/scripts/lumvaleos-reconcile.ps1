@@ -6,5 +6,5 @@ if (-not $python) {
     if ($resolved) { $python = $resolved.Source }
 }
 if (-not $python) { exit 0 }
-try { & $python $script *> $null } catch { exit 0 }
+try { & $python $script } catch { exit 0 }
 exit 0
