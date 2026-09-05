@@ -193,7 +193,7 @@ hook definitions.
 |---|---|
 | `/amir-loop` | Arms a loop in the current session with your own prompt. The Stop hook then feeds that same prompt back on every turn until the loop ends. |
 | `/amir-loop-cancel` | Cancels active loops in the project: removes their session-scoped state files and writes a `.claude/amir-loop-off` kill switch, so the hook does not simply re-arm on the next turn. |
-| `/amir-loop-status` | Shows the current loop state for this project (idle, armed with iteration/limit, or invalid) without mutating anything. |
+| `/amir-loop-status` | Shows the current loop state for this project (idle, armed with iteration/limit, or invalid) without mutating anything. The underlying script also accepts `--json` for a schema-versioned aggregate and per-session status contract. |
 | `/amir-loop-init` | Scaffolds a `.claude/amir-loop-principles.md` file from `templates/principles/`, if one does not already exist here. Never overwrites an existing principles file. |
 | `/amir-loop-doctor` | Diagnoses why the loop is or is not working on this machine — bash resolution, vendored `jq`, conflicting Stop-hook registrations, and stale copies across supported hosts — and states a concrete fix for each failure. |
 

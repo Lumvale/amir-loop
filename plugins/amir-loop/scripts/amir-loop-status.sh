@@ -12,9 +12,79 @@
 # digits-only number out of a field that failed that test - a diagnostic that
 # reports a healthy loop the hook has already discarded is worse than none.
 set -uo pipefail
+
+JSON=0
+for arg in "$@"; do
+  case "$arg" in
+    --json) JSON=1 ;;
+    *) printf 'unknown argument: %s\n' "$arg" >&2; exit 2 ;;
+  esac
+done
+
 shopt -s nullglob
 SESSION_STATES=("$PWD"/.claude/amir-loop.*.local.md)
 S="$PWD/.claude/amir-loop.local.md"
+
+# Machine consumers get a stable contract instead of parsing the human display and then opening
+# every state file themselves. Keep this branch separate from the text path below: --json is
+# additive, and the established text output remains byte-compatible for people and the extension.
+if [ "$JSON" -eq 1 ]; then
+  _vendor="$(cd "$(dirname "$0")/.." && pwd)/vendor/jq"
+  case "$(uname -s 2>/dev/null)" in
+    Linux) _cand="$_vendor/jq-linux-amd64" ;;
+    Darwin) case "$(uname -m 2>/dev/null)" in
+      arm64) _cand="$_vendor/jq-macos-arm64" ;;
+      *) _cand="$_vendor/jq-macos-amd64" ;;
+    esac ;;
+    MINGW*|MSYS*|CYGWIN*) _cand="$_vendor/jq-windows-amd64.exe" ;;
+    *) _cand="" ;;
+  esac
+  if [ -n "$_cand" ] && "$_cand" --version >/dev/null 2>&1; then
+    JQ="$_cand"
+  elif command -v jq >/dev/null 2>&1; then
+    JQ=jq
+  else
+    printf '%s\n' '{"schema_version":1,"state":"unavailable","sessions":[],"error":"jq is unavailable"}'
+    exit 0
+  fi
+
+  if [ "${#SESSION_STATES[@]}" -eq 0 ] && [ -f "$S" ]; then
+    SESSION_STATES=("$S")
+  fi
+
+  sessions='[]'
+  for SESSION_STATE in "${SESSION_STATES[@]}"; do
+    FM=$(sed -n '/^---$/,/^---$/{ /^---$/d; p; }' "$SESSION_STATE" 2>/dev/null)
+    ITER=$(printf '%s' "$FM" | grep '^iteration:' | sed 's/iteration: *//' | tr -d '[:space:]')
+    LIMIT=$(printf '%s' "$FM" | grep '^max_iterations:' | sed 's/max_iterations: *//' | tr -d '[:space:]')
+    GOAL=$(printf '%s' "$FM" | grep '^completion_promise:' | sed 's/^completion_promise: *//; s/^"\(.*\)"$/\1/')
+    STARTED=$(printf '%s' "$FM" | grep '^started_at:' | sed 's/^started_at: *//; s/^"\(.*\)"$/\1/')
+    INVALID=0
+    case "$ITER" in ''|*[!0-9]*) INVALID=1 ;; esac
+    case "$LIMIT" in ''|*[!0-9]*) INVALID=1 ;; esac
+    if [ "$INVALID" -eq 1 ]; then
+      item=$("$JQ" -nc --arg path "$SESSION_STATE" --arg promise "$GOAL" --arg started "$STARTED" \
+        '{path:$path,state:"invalid",iteration:null,max_iterations:null,completion_promise:$promise,started_at:$started}')
+    else
+      item=$("$JQ" -nc --arg path "$SESSION_STATE" --argjson iteration "$ITER" \
+        --argjson max_iterations "$LIMIT" --arg promise "$GOAL" --arg started "$STARTED" \
+        '{path:$path,state:"armed",iteration:$iteration,max_iterations:$max_iterations,completion_promise:$promise,started_at:$started}')
+    fi
+    sessions=$("$JQ" -nc --argjson sessions "$sessions" --argjson item "$item" '$sessions + [$item]')
+  done
+
+  if [ "$(printf '%s' "$sessions" | "$JQ" 'length')" -eq 0 ]; then
+    aggregate=idle
+  elif printf '%s' "$sessions" | "$JQ" -e 'any(.[]; .state == "invalid")' >/dev/null; then
+    aggregate=invalid
+  else
+    aggregate=armed
+  fi
+  "$JQ" -nc --arg state "$aggregate" --argjson sessions "$sessions" \
+    '{schema_version:1,state:$state,session_count:($sessions|length),sessions:$sessions}'
+  exit 0
+fi
+
 if [ "${#SESSION_STATES[@]}" -gt 0 ]; then
   echo "state: armed"
   echo "sessions: ${#SESSION_STATES[@]}"
