@@ -47,6 +47,8 @@ def lumvaleos_root() -> Path | None:
             if candidate and (candidate / "lumvaleos.py").is_file():
                 return candidate
         except (OSError, ValueError, TypeError):
+            # An optional malformed or unreadable host config is treated as absent so discovery
+            # can continue through the current working directory.
             pass
     current = Path.cwd().resolve()
     for candidate in (current, *current.parents):

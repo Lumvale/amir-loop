@@ -96,6 +96,8 @@ def configured_root() -> Path | None:
             if root:
                 return root
         except (OSError, ValueError, TypeError):
+            # An optional malformed or unreadable Codex config is treated as absent so discovery
+            # can continue through the remaining configured sources.
             pass
 
     claude_config = Path(os.environ.get("AMIR_LOOP_CLAUDE_CONFIG", Path.home() / ".claude.json"))
@@ -107,6 +109,8 @@ def configured_root() -> Path | None:
             if root:
                 return root
         except (OSError, ValueError, TypeError):
+            # An optional malformed or unreadable Claude config is treated as absent so discovery
+            # can continue through the current working directory.
             pass
 
     current = Path.cwd().resolve()
