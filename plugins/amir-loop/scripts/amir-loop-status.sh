@@ -24,6 +24,22 @@ done
 shopt -s nullglob
 SESSION_STATES=("$PWD"/.claude/amir-loop.*.local.md)
 S="$PWD/.claude/amir-loop.local.md"
+CLAIM_DIR="$PWD/.claude/.amir-loop-worktree-claim"
+CLAIM_STALE_AFTER="${AMIR_LOOP_CLAIM_STALE_SECONDS:-604800}"
+CLAIM_NOW="${AMIR_LOOP_CLAIM_NOW:-$(date -u +%s)}"
+
+read_claim() {
+  CLAIM_OWNER="" CLAIM_HEARTBEAT="" CLAIM_AGE="" CLAIM_STATE="unclaimed"
+  [ -d "$CLAIM_DIR" ] || return 0
+  CLAIM_OWNER=$(cat "$CLAIM_DIR/owner" 2>/dev/null || true)
+  CLAIM_HEARTBEAT=$(cat "$CLAIM_DIR/heartbeat" 2>/dev/null || true)
+  case "$CLAIM_OWNER" in ''|*[!A-Za-z0-9._-]*) CLAIM_STATE=invalid; return 0 ;; esac
+  case "$CLAIM_HEARTBEAT:$CLAIM_NOW:$CLAIM_STALE_AFTER" in *[!0-9:]*) CLAIM_STATE=invalid; return 0 ;; esac
+  CLAIM_AGE=$((CLAIM_NOW - CLAIM_HEARTBEAT))
+  [ "$CLAIM_AGE" -ge 0 ] || { CLAIM_STATE=invalid; return 0; }
+  if [ "$CLAIM_AGE" -gt "$CLAIM_STALE_AFTER" ]; then CLAIM_STATE=stale; else CLAIM_STATE=live; fi
+}
+read_claim
 
 # Machine consumers get a stable contract instead of parsing the human display and then opening
 # every state file themselves. Keep this branch separate from the text path below: --json is
@@ -54,7 +70,9 @@ if [ "$JSON" -eq 1 ]; then
     if [ -f "$S" ]; then
       SESSION_STATES=("$S")
     else
-      printf '%s\n' '{"schema_version":1,"state":"idle","session_count":0,"sessions":[]}'
+      "$JQ" -nc --arg claim_state "$CLAIM_STATE" --arg owner "$CLAIM_OWNER" \
+        --arg heartbeat "$CLAIM_HEARTBEAT" --arg age "$CLAIM_AGE" --arg threshold "$CLAIM_STALE_AFTER" \
+        '{schema_version:1,state:"idle",session_count:0,sessions:[],worktree_claim:{state:$claim_state,owner:(if $owner=="" then null else $owner end),heartbeat_epoch:(if $heartbeat=="" then null else ($heartbeat|tonumber? // null) end),age_seconds:(if $age=="" then null else ($age|tonumber? // null) end),stale_after_seconds:($threshold|tonumber? // null)}}'
       exit 0
     fi
   fi
@@ -88,7 +106,9 @@ if [ "$JSON" -eq 1 ]; then
     aggregate=armed
   fi
   "$JQ" -nc --arg state "$aggregate" --argjson sessions "$sessions" \
-    '{schema_version:1,state:$state,session_count:($sessions|length),sessions:$sessions}'
+    --arg claim_state "$CLAIM_STATE" --arg owner "$CLAIM_OWNER" --arg heartbeat "$CLAIM_HEARTBEAT" \
+    --arg age "$CLAIM_AGE" --arg threshold "$CLAIM_STALE_AFTER" \
+    '{schema_version:1,state:$state,session_count:($sessions|length),sessions:$sessions,worktree_claim:{state:$claim_state,owner:(if $owner=="" then null else $owner end),heartbeat_epoch:(if $heartbeat=="" then null else ($heartbeat|tonumber? // null) end),age_seconds:(if $age=="" then null else ($age|tonumber? // null) end),stale_after_seconds:($threshold|tonumber? // null)}}'
   exit 0
 fi
 
@@ -119,6 +139,11 @@ else
     echo "started: $STARTED"
   fi
 fi
+case "$CLAIM_STATE" in
+  unclaimed) echo "worktree claim: unclaimed" ;;
+  live|stale) echo "worktree claim: $CLAIM_STATE owner=$CLAIM_OWNER age=${CLAIM_AGE}s stale-after=${CLAIM_STALE_AFTER}s" ;;
+  invalid) echo "worktree claim: invalid (collision protection fails closed)" ;;
+esac
 C="$PWD/.claude/.amir-loop-campaign"
 if [ -f "$C" ]; then
   START=$(cat "$C" 2>/dev/null)
