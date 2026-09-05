@@ -30,6 +30,8 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
       - name: Assert Amir Loop plugin changes bump the Codex cache version
         if: runner.os == 'Linux'
         env:
@@ -41,7 +43,6 @@ jobs:
           else
             BASE_SHA="HEAD^"
           fi
-          git fetch --no-tags --depth=1 origin "$BASE_SHA"
           scripts/check-codex-plugin-version-bump.sh "$BASE_SHA"
       - name: Install bats
         run: |

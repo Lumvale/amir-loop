@@ -26,6 +26,12 @@ setup() {
   run grep -F "PUSH_BASE_SHA: \${{ github.event.before }}" "$WORKFLOW"
   [ "$status" -eq 0 ]
 
+  run grep -F "fetch-depth: 2" "$WORKFLOW"
+  [ "$status" -eq 0 ]
+
+  run grep -F 'git fetch --no-tags' "$WORKFLOW"
+  [ "$status" -ne 0 ]
+
   run grep -F 'scripts/check-codex-plugin-version-bump.sh "$BASE_SHA"' "$WORKFLOW"
   [ "$status" -eq 0 ]
 }
