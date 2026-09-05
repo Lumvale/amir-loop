@@ -40,19 +40,19 @@ setup() {
   [ "$status" -ne 0 ]
 }
 
-@test "cache-version policy is reachable without a pull-request event" {
+@test "hosted workflow is only the OS-specific binary and shell lane" {
   run grep -F "github.event_name == 'pull_request'" "$WORKFLOW"
   [ "$status" -ne 0 ]
-
-  run grep -F "PUSH_BASE_SHA: \${{ github.event.before }}" "$WORKFLOW"
-  [ "$status" -eq 0 ]
 
   run grep -F "fetch-depth: 2" "$WORKFLOW"
   [ "$status" -eq 0 ]
 
-  run grep -F 'git fetch --no-tags' "$WORKFLOW"
+  run grep -F 'os: [macos-latest, windows-latest]' "$WORKFLOW"
+  [ "$status" -eq 0 ]
+
+  run grep -F 'ubuntu-latest' "$WORKFLOW"
   [ "$status" -ne 0 ]
 
-  run grep -F 'scripts/check-codex-plugin-version-bump.sh "$BASE_SHA"' "$WORKFLOW"
-  [ "$status" -eq 0 ]
+  run grep -F 'scripts/check-codex-plugin-version-bump.sh' "$WORKFLOW"
+  [ "$status" -ne 0 ]
 }
