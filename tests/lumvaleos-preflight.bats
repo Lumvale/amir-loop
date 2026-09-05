@@ -81,6 +81,11 @@ run_bridge() {
   [ "$status" -eq 0 ]
 }
 
+@test "Python 3.9 fallback reads configured command arguments without tomllib" {
+  run "$PYTHON" "$BATS_TEST_DIRNAME/test_lumvaleos_preflight.py"
+  [ "$status" -eq 0 ]
+}
+
 @test "explicit missing interpreter fails closed" {
   LUMVALEOS_PYTHON="$BATS_TEST_TMPDIR/no-python" run_bridge
   [ "$status" -eq 1 ]
