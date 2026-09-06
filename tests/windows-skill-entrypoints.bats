@@ -73,3 +73,19 @@ load helper
   [ "$(echo "$posix_json" | jq -c '[.schema_version, .plugin.name, .checks | map([.severity,.code])]')" = \
     "$(echo "$powershell_json" | jq -c '[.schema_version, .plugin.name, .checks | map([.severity,.code])]')" ]
 }
+
+@test "PowerShell status bypasses System32 bash and forwards a session as argv" {
+  command -v powershell.exe >/dev/null 2>&1 || skip "PowerShell is Windows-only"
+  project="$BATS_TEST_TMPDIR/project with spaces"
+  mkdir -p "$project/.claude/.amir-loop-worktree-claim"
+  printf -- '---\nsession_id: "session-one"\niteration: 3\nmax_iterations: 9\ncompletion_promise: "DONE"\nstarted_at: "2026-09-06T00:00:00Z"\n---\n' > "$project/.claude/amir-loop.session-one.local.md"
+  printf 'session-one\n' > "$project/.claude/.amir-loop-worktree-claim/owner"
+  printf '100\n' > "$project/.claude/.amir-loop-worktree-claim/heartbeat"
+  script=$(cygpath -w "$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-status.ps1")
+  project_win=$(cygpath -w "$project")
+
+  run powershell.exe -NoProfile -Command "Set-Location -LiteralPath '$project_win'; \$env:AMIR_LOOP_CLAIM_NOW='105'; & '$script' -Json -Session 'session-one'"
+
+  [ "$status" -eq 0 ]
+  echo "$output" | tr -d '\r' | jq -e '.selection.source == "argument" and .selection.session_id == "session-one" and .reconciliation.state == "armed-claimed"' >/dev/null
+}

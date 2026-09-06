@@ -212,7 +212,7 @@ cannot silently claim schedules from a different ambient Workspace.
 |---|---|
 | `/amir-loop` | Arms a loop in the current session with your own prompt. The Stop hook then feeds that same prompt back on every turn until the loop ends. |
 | `/amir-loop-cancel` | Cancels active loops in the project: removes their session-scoped state files and writes a `.claude/amir-loop-off` kill switch, so the hook does not simply re-arm on the next turn. |
-| `/amir-loop-status` | Shows the current loop state for this project (idle, armed with iteration/limit, or invalid) without mutating anything. The underlying script also accepts `--json` for a schema-versioned aggregate and per-session status contract. |
+| `/amir-loop-status` | Shows the current loop state without mutation. JSON mode accepts a session selector and reconciles state, claim, and kill-switch evidence while keeping runtime liveness UNKNOWN. |
 | `/amir-loop-init` | Scaffolds a `.claude/amir-loop-principles.md` file from `templates/principles/`, if one does not already exist here. Never overwrites an existing principles file. |
 | `/amir-loop-doctor` | Diagnoses why the loop is or is not working on this machine — bash resolution, vendored `jq`, conflicting Stop-hook registrations, and stale copies across supported hosts — and states a concrete fix for each failure. |
 
@@ -273,6 +273,11 @@ atomically reclaimed, while malformed claims always fail closed.
 `amir-loop-status.sh --json` exposes the claim owner, heartbeat age, threshold, and
 `unclaimed|live|stale|invalid` classification; `amir-loop-doctor.sh` reports the same safety
 state so automation does not need to parse raw claim files.
+Pass `--session ID` (or `-Session ID` to the native PowerShell entrypoint) when the host exposes
+its session identifier. Otherwise status selects a uniquely matching claim or sole state and
+reports multiple unclaimed states as `ambiguous`. Reconciliation never treats a state file or
+claim as proof of a live process: `runtime_liveness` remains `unknown`, while the project kill
+switch is reported as `suspended` because the Stop hook cannot re-arm.
 This prevents two chats rooted in the same workspace from inheriting or overwriting
 each other's goal. A manually armed loop is first written as `amir-loop.pending.local.md`
 and claimed by the next Stop event in that chat. Older project-wide
