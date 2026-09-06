@@ -59,6 +59,17 @@ EOF
   [ "$(echo "$output" | tr -d '\r')" = '1.10.0+codex.20260906194500' ]
 }
 
+@test "recovery fails closed when highest parsed versions are ambiguous" {
+  make_plugin '1.0.0-alpha+codex.20260906194500'
+  make_plugin '1.0.0-beta+codex.20260906194500'
+
+  run powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$launcher" status -CacheRoot "$(cygpath -w "$cache")"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'Ambiguous newest Amir Loop cache entries'* ]]
+  [[ "$output" == *'1.0.0-alpha+codex.20260906194500'* ]]
+  [[ "$output" == *'1.0.0-beta+codex.20260906194500'* ]]
+}
+
 @test "recovery invokes shell fallback through Git Bash with path and argv intact" {
   cache="$BATS_TEST_TMPDIR/cache with spaces"
   mkdir -p "$cache"

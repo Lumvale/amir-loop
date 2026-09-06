@@ -81,6 +81,16 @@ else {
     if ($validRoots.Count -eq 0) {
         throw "No valid Amir Loop installation with a '$Command' entrypoint exists under: $CacheRoot"
     }
+    $highest = $validRoots[0]
+    $highestTies = @(
+        $validRoots | Where-Object {
+            $_.Version -eq $highest.Version -and $_.Build -eq $highest.Build
+        }
+    )
+    if ($highestTies.Count -ne 1) {
+        $names = ($highestTies | ForEach-Object { $_.Directory.Name }) -join ', '
+        throw "Ambiguous newest Amir Loop cache entries share version $($highest.Version) build $($highest.Build): $names"
+    }
     $resolvedRoot = $validRoots[0].Directory.FullName
 }
 
