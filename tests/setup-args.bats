@@ -45,6 +45,17 @@ SETUP="$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-setup.sh"
   [ -f "$BATS_TEST_TMPDIR/.claude/amir-loop-off" ]
 }
 
+@test "setup: project cancellation releases the current worktree claim" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude/.amir-loop-worktree-claim"
+  printf 'session-one\n' > "$BATS_TEST_TMPDIR/.claude/.amir-loop-worktree-claim/owner"
+  printf '100\n' > "$BATS_TEST_TMPDIR/.claude/.amir-loop-worktree-claim/heartbeat"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$SETUP" --cancel
+  [ "$status" -eq 0 ]
+  [ -f "$BATS_TEST_TMPDIR/.claude/amir-loop-off" ]
+  [ ! -e "$BATS_TEST_TMPDIR/.claude/.amir-loop-worktree-claim" ]
+}
+
 @test "setup: -h alone still prints help" {
   cd "$BATS_TEST_TMPDIR"
   run bash "$SETUP" -h
