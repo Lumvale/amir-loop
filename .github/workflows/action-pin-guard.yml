@@ -1,0 +1,16 @@
+name: Action pin guard
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  action-pin-guard:
+    name: Immutable action references
+    runs-on: ${{ vars.RUNNER_LABEL }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: Lumvale/lumvale-os/.github/actions/action-pin-guard@7b138bd865d087d7f66bfd2aa244c1d01fd5e45a
