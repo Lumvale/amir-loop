@@ -34,7 +34,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@4c6e8b7a5a7117ea6c50b5b8c8c8c8c8c8c8c8c8c # fault injection; replaced before merge
         with:
           fetch-depth: 2
       - name: Install bats
