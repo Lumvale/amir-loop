@@ -52,6 +52,19 @@ opt-in per project and version-controlled.
   against `repos/Lumvale/<repo>/commits/main` before publishing a number.
 
 ## Definition of done
+- Before consequential design, implementation, review, research, incident, schedule or playbook
+  closure, resolve `lumvale-docs/engineering/techniques/README.md` fresh and call LumvaleOS
+  `technique.strategy` with the concrete question, changed paths, surface and risk tier. Carry every
+  selected candidate in a `technique_decision`: `applied` requires its executor, exact artifact/run,
+  freshness and limitations; `deferred` requires owner + reopening trigger; `not_applicable`
+  requires a reason; missing evidence remains `unknown`. Do not mechanically run all catalog entries.
+  The broader catalog widens and never replaces AST/code/workflow graphs, MBT or PBT. Privacy,
+  authority, review, ingestion and release controls override relevance, especially for
+  restricted-sensitive and not-yet-classified information.
+  Persist a known disposition through LumvaleOS `technique.record` when available; keep its
+  assurance path relative to the active Workspace. Do not hand-write the assurance record or
+  describe selection as execution. Applied evidence needs immutable ref, tool/configuration
+  provenance and verified artifact digest/size; unknown keeps explicit blind spots.
 - Capture verified findings and close out through LumvaleOS. Use ordinary local shell, test,
   review, and git tools for implementation; LumvaleOS governs knowledge, workflow, backlog,
   and evidence rather than replacing every engineering tool.
@@ -79,6 +92,11 @@ opt-in per project and version-controlled.
   Ordinary PRs intentionally have no runner-backed build/test checks. Never dispatch a product
   workflow after merge; fix the owning repository and require a later natural Fleet Build receipt
   before calling that default-branch SHA centrally verified or releasable.
+- Before the final push or merge, rebase onto current `main`, run the repository's
+  pre-verification/pre-push contract, and fix failures locally. Bind command evidence and
+  self-review to the resulting full head SHA; if rebase or any edit changes HEAD, renew both. This
+  is the first correctness barrier. The six-hour Fleet Build is the later fleet integration and
+  promotion-evidence layer, with manual dispatch reserved for genuinely urgent diagnosis.
 
 ## Lumvale architecture and recursive improvement
 - Follow the current Lumvale Architecture and Engineering ADRs, autonomous constitution,
