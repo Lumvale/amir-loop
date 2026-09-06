@@ -61,6 +61,62 @@ snapshot_claude() {
   jq -e '.sessions[0].path | endswith("amir-loop.a.local.md")' <<<"$output"
   jq -e '.sessions[0] | .state == "armed" and .iteration == 1 and .max_iterations == 8 and .completion_promise == "FIRST" and .started_at == "2026-09-05T01:00:00Z"' <<<"$output"
   jq -e '.sessions[1].path | endswith("amir-loop.z.local.md")' <<<"$output"
+  jq -e '.selection.state == "ambiguous" and .reconciliation.state == "ambiguous" and .reconciliation.runtime_liveness == "unknown"' <<<"$output"
+}
+
+@test "json status selects an explicit session without guessing liveness" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  printf -- '---\nsession_id: "session-a"\niteration: 1\nmax_iterations: 8\ncompletion_promise: "FIRST"\nstarted_at: "2026-09-05T01:00:00Z"\n---\n' > "$BATS_TEST_TMPDIR/.claude/amir-loop.session-a.local.md"
+  printf -- '---\nsession_id: "session-b"\niteration: 2\nmax_iterations: 9\ncompletion_promise: "SECOND"\nstarted_at: "2026-09-05T02:00:00Z"\n---\n' > "$BATS_TEST_TMPDIR/.claude/amir-loop.session-b.local.md"
+  cd "$BATS_TEST_TMPDIR"
+
+  run bash "$STATUS" --json --session session-b
+
+  [ "$status" -eq 0 ]
+  jq -e '.selection == {state:"selected",source:"argument",requested_session:"session-b",session_id:"session-b",path:.selection.path}' <<<"$output"
+  jq -e '.reconciliation.state == "armed-unconfirmed" and .reconciliation.runtime_liveness == "unknown"' <<<"$output"
+}
+
+@test "json status reconciles claim and kill switch without calling either process liveness" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude/.amir-loop-worktree-claim"
+  printf -- '---\nsession_id: "session-b"\niteration: 2\nmax_iterations: 9\ncompletion_promise: "SECOND"\nstarted_at: "2026-09-05T02:00:00Z"\n---\n' > "$BATS_TEST_TMPDIR/.claude/amir-loop.session-b.local.md"
+  printf 'session-b\n' > "$BATS_TEST_TMPDIR/.claude/.amir-loop-worktree-claim/owner"
+  printf '100\n' > "$BATS_TEST_TMPDIR/.claude/.amir-loop-worktree-claim/heartbeat"
+  cd "$BATS_TEST_TMPDIR"
+
+  AMIR_LOOP_CLAIM_NOW=105 AMIR_LOOP_CLAIM_STALE_SECONDS=10 run bash "$STATUS" --json
+  jq -e '.selection.source == "claim" and .selection.session_id == "session-b" and .reconciliation.state == "armed-claimed" and .reconciliation.runtime_liveness == "unknown"' <<<"$output"
+
+  : > .claude/amir-loop-off
+  AMIR_LOOP_CLAIM_NOW=105 AMIR_LOOP_CLAIM_STALE_SECONDS=10 run bash "$STATUS" --json
+  jq -e '.selection.session_id == "session-b" and .reconciliation.state == "suspended" and (.reconciliation.reason | contains("kill switch"))' <<<"$output"
+}
+
+@test "json status reports requested session absence explicitly" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  printf -- '---\nsession_id: "session-a"\niteration: 1\nmax_iterations: 8\ncompletion_promise: "FIRST"\nstarted_at: "2026-09-05T01:00:00Z"\n---\n' > "$BATS_TEST_TMPDIR/.claude/amir-loop.session-a.local.md"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$STATUS" --json --session missing
+  [ "$status" -eq 0 ]
+  jq -e '.selection.state == "absent" and .selection.requested_session == "missing" and .reconciliation.state == "absent"' <<<"$output"
+}
+
+@test "json status fails closed when an explicit session identifier is duplicated" {
+  mkdir -p "$BATS_TEST_TMPDIR/.claude"
+  printf -- '---\nsession_id: "duplicate"\niteration: 1\nmax_iterations: 8\ncompletion_promise: "FIRST"\nstarted_at: "2026-09-05T01:00:00Z"\n---\n' > "$BATS_TEST_TMPDIR/.claude/amir-loop.first.local.md"
+  printf -- '---\nsession_id: "duplicate"\niteration: 2\nmax_iterations: 9\ncompletion_promise: "SECOND"\nstarted_at: "2026-09-05T02:00:00Z"\n---\n' > "$BATS_TEST_TMPDIR/.claude/amir-loop.second.local.md"
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$STATUS" --json --session duplicate
+  [ "$status" -eq 0 ]
+  jq -e '.selection.state == "ambiguous" and .selection.session_id == null and .reconciliation.state == "ambiguous"' <<<"$output"
+}
+
+@test "status rejects unsafe or incomplete session selectors" {
+  cd "$BATS_TEST_TMPDIR"
+  run bash "$STATUS" --json --session
+  [ "$status" -eq 2 ]
+  run bash "$STATUS" --json --session '../other'
+  [ "$status" -eq 2 ]
 }
 
 @test "json status fails closed for malformed session counters" {

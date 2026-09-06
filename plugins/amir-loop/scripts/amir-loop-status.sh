@@ -14,10 +14,17 @@
 set -uo pipefail
 
 JSON=0
-for arg in "$@"; do
-  case "$arg" in
-    --json) JSON=1 ;;
-    *) printf 'unknown argument: %s\n' "$arg" >&2; exit 2 ;;
+REQUESTED_SESSION=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --json) JSON=1; shift ;;
+    --session)
+      [ "$#" -ge 2 ] || { printf '%s\n' 'missing value for --session' >&2; exit 2; }
+      REQUESTED_SESSION=$2
+      case "$REQUESTED_SESSION" in ''|*[!A-Za-z0-9._-]*) printf '%s\n' 'invalid --session value' >&2; exit 2 ;; esac
+      shift 2
+      ;;
+    *) printf 'unknown argument: %s\n' "$1" >&2; exit 2 ;;
   esac
 done
 
@@ -72,7 +79,8 @@ if [ "$JSON" -eq 1 ]; then
     else
       "$JQ" -nc --arg claim_state "$CLAIM_STATE" --arg owner "$CLAIM_OWNER" \
         --arg heartbeat "$CLAIM_HEARTBEAT" --arg age "$CLAIM_AGE" --arg threshold "$CLAIM_STALE_AFTER" \
-        '{schema_version:1,state:"idle",session_count:0,sessions:[],worktree_claim:{state:$claim_state,owner:(if $owner=="" then null else $owner end),heartbeat_epoch:(if $heartbeat=="" then null else ($heartbeat|tonumber? // null) end),age_seconds:(if $age=="" then null else ($age|tonumber? // null) end),stale_after_seconds:($threshold|tonumber? // null)}}'
+        --arg requested "$REQUESTED_SESSION" \
+        '{schema_version:1,state:"idle",session_count:0,sessions:[],selection:{state:(if $requested=="" then "none" else "absent" end),source:(if $requested=="" then null else "argument" end),requested_session:(if $requested=="" then null else $requested end),session_id:null,path:null},reconciliation:{state:(if $requested=="" then "idle" else "absent" end),runtime_liveness:"unknown",reason:(if $requested=="" then "no session state exists" else "requested session state does not exist" end)},worktree_claim:{state:$claim_state,owner:(if $owner=="" then null else $owner end),heartbeat_epoch:(if $heartbeat=="" then null else ($heartbeat|tonumber? // null) end),age_seconds:(if $age=="" then null else ($age|tonumber? // null) end),stale_after_seconds:($threshold|tonumber? // null)}}'
       exit 0
     fi
   fi
@@ -84,16 +92,19 @@ if [ "$JSON" -eq 1 ]; then
     LIMIT=$(printf '%s' "$FM" | grep '^max_iterations:' | sed 's/max_iterations: *//' | tr -d '[:space:]')
     GOAL=$(printf '%s' "$FM" | grep '^completion_promise:' | sed 's/^completion_promise: *//; s/^"\(.*\)"$/\1/')
     STARTED=$(printf '%s' "$FM" | grep '^started_at:' | sed 's/^started_at: *//; s/^"\(.*\)"$/\1/')
+    SESSION_ID=$(printf '%s' "$FM" | grep '^session_id:' | sed 's/^session_id: *//; s/^"\(.*\)"$/\1/')
+    SESSION_KEY=$(basename "$SESSION_STATE" | sed 's/^amir-loop\.//; s/\.local\.md$//')
+    [ -n "$SESSION_ID" ] || SESSION_ID=$SESSION_KEY
     INVALID=0
     case "$ITER" in ''|*[!0-9]*) INVALID=1 ;; esac
     case "$LIMIT" in ''|*[!0-9]*) INVALID=1 ;; esac
     if [ "$INVALID" -eq 1 ]; then
-      item=$("$JQ" -nc --arg path "$SESSION_STATE" --arg promise "$GOAL" --arg started "$STARTED" \
-        '{path:$path,state:"invalid",iteration:null,max_iterations:null,completion_promise:$promise,started_at:$started}')
+      item=$("$JQ" -nc --arg path "$SESSION_STATE" --arg session_id "$SESSION_ID" --arg session_key "$SESSION_KEY" --arg promise "$GOAL" --arg started "$STARTED" \
+        '{path:$path,session_id:$session_id,session_key:$session_key,state:"invalid",iteration:null,max_iterations:null,completion_promise:$promise,started_at:$started}')
     else
-      item=$("$JQ" -nc --arg path "$SESSION_STATE" --argjson iteration "$ITER" \
+      item=$("$JQ" -nc --arg path "$SESSION_STATE" --arg session_id "$SESSION_ID" --arg session_key "$SESSION_KEY" --argjson iteration "$ITER" \
         --argjson max_iterations "$LIMIT" --arg promise "$GOAL" --arg started "$STARTED" \
-        '{path:$path,state:"armed",iteration:$iteration,max_iterations:$max_iterations,completion_promise:$promise,started_at:$started}')
+        '{path:$path,session_id:$session_id,session_key:$session_key,state:"armed",iteration:$iteration,max_iterations:$max_iterations,completion_promise:$promise,started_at:$started}')
     fi
     sessions=$("$JQ" -nc --argjson sessions "$sessions" --argjson item "$item" '$sessions + [$item]')
   done
@@ -105,10 +116,51 @@ if [ "$JSON" -eq 1 ]; then
   else
     aggregate=armed
   fi
+  # Selection is deterministic and evidence-based: an explicit argument wins, then a matching
+  # worktree claim, then the sole state. Multiple unclaimed states are ambiguous, never guessed.
+  selection_source="" selected='null' selection_state="ambiguous"
+  if [ -n "$REQUESTED_SESSION" ]; then
+    selection_source=argument
+    requested_matches=$(printf '%s' "$sessions" | "$JQ" --arg requested "$REQUESTED_SESSION" \
+      '[.[] | select(.session_id == $requested or .session_key == $requested)] | length')
+    selected=$(printf '%s' "$sessions" | "$JQ" -c --arg requested "$REQUESTED_SESSION" \
+      '[.[] | select(.session_id == $requested or .session_key == $requested)] | if length == 1 then .[0] else null end')
+    case "$requested_matches" in 0) selection_state=absent ;; 1) selection_state=selected ;; *) selection_state=ambiguous ;; esac
+  elif [ "$CLAIM_STATE" = live ] || [ "$CLAIM_STATE" = stale ]; then
+    selection_source=claim
+    claim_matches=$(printf '%s' "$sessions" | "$JQ" --arg owner "$CLAIM_OWNER" \
+      '[.[] | select(.session_id == $owner or .session_key == $owner)] | length')
+    selected=$(printf '%s' "$sessions" | "$JQ" -c --arg owner "$CLAIM_OWNER" \
+      '[.[] | select(.session_id == $owner or .session_key == $owner)] | if length == 1 then .[0] else null end')
+    case "$claim_matches" in 0) selection_state=claim-unmatched ;; 1) selection_state=selected ;; *) selection_state=ambiguous ;; esac
+  elif [ "$(printf '%s' "$sessions" | "$JQ" 'length')" -eq 1 ]; then
+    selection_source=sole-state selection_state=selected
+    selected=$(printf '%s' "$sessions" | "$JQ" -c '.[0]')
+  fi
+
+  if [ "$selection_state" != selected ]; then
+    reconciliation_state=$selection_state
+    reconciliation_reason="no single session can be selected from current evidence"
+  elif [ -f "$PWD/.claude/amir-loop-off" ]; then
+    reconciliation_state=suspended
+    reconciliation_reason="project kill switch prevents the Stop hook from re-arming"
+  elif [ "$(printf '%s' "$selected" | "$JQ" -r '.state')" = invalid ]; then
+    reconciliation_state=invalid
+    reconciliation_reason="selected session state is invalid"
+  elif [ "$CLAIM_STATE" = live ] && printf '%s' "$selected" | "$JQ" -e --arg owner "$CLAIM_OWNER" '.session_id == $owner or .session_key == $owner' >/dev/null; then
+    reconciliation_state=armed-claimed
+    reconciliation_reason="selected state has the live worktree claim; process liveness is not observable"
+  else
+    reconciliation_state=armed-unconfirmed
+    reconciliation_reason="selected state exists without a matching live claim; process liveness is unknown"
+  fi
+
   "$JQ" -nc --arg state "$aggregate" --argjson sessions "$sessions" \
     --arg claim_state "$CLAIM_STATE" --arg owner "$CLAIM_OWNER" --arg heartbeat "$CLAIM_HEARTBEAT" \
-    --arg age "$CLAIM_AGE" --arg threshold "$CLAIM_STALE_AFTER" \
-    '{schema_version:1,state:$state,session_count:($sessions|length),sessions:$sessions,worktree_claim:{state:$claim_state,owner:(if $owner=="" then null else $owner end),heartbeat_epoch:(if $heartbeat=="" then null else ($heartbeat|tonumber? // null) end),age_seconds:(if $age=="" then null else ($age|tonumber? // null) end),stale_after_seconds:($threshold|tonumber? // null)}}'
+    --arg age "$CLAIM_AGE" --arg threshold "$CLAIM_STALE_AFTER" --arg selection_state "$selection_state" \
+    --arg selection_source "$selection_source" --arg requested "$REQUESTED_SESSION" --argjson selected "$selected" \
+    --arg reconciliation_state "$reconciliation_state" --arg reconciliation_reason "$reconciliation_reason" \
+    '{schema_version:1,state:$state,session_count:($sessions|length),sessions:$sessions,selection:{state:$selection_state,source:(if $selection_source=="" then null else $selection_source end),requested_session:(if $requested=="" then null else $requested end),session_id:($selected.session_id // null),path:($selected.path // null)},reconciliation:{state:$reconciliation_state,runtime_liveness:"unknown",reason:$reconciliation_reason},worktree_claim:{state:$claim_state,owner:(if $owner=="" then null else $owner end),heartbeat_epoch:(if $heartbeat=="" then null else ($heartbeat|tonumber? // null) end),age_seconds:(if $age=="" then null else ($age|tonumber? // null) end),stale_after_seconds:($threshold|tonumber? // null)}}'
   exit 0
 fi
 
