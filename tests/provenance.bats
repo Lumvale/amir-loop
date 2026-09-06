@@ -22,6 +22,7 @@ run_observer() {
   [ -f "$ledger" ]
   [ "$(jq -r '.host_surface' "$ledger")" = "codex" ]
   [ "$(jq -r '.model' "$ledger")" = "gpt-5.6-sol" ]
+  [ "$(jq -r '.model_identity_source' "$ledger")" = "host-payload" ]
   [ "$(jq -r '.session_id' "$ledger")" = "session-1" ]
   [ "$(jq -r '.turn_id' "$ledger")" = "turn-7" ]
   [ "$(jq -r '.phase' "$ledger")" = "pre" ]
@@ -53,6 +54,7 @@ run_observer() {
   ledger="$BATS_TEST_TMPDIR/.lumvaleos/agent-actions.jsonl"
   [ "$(jq -r '.host_surface' "$ledger")" = "vscode-copilot" ]
   [ "$(jq -r '.model' "$ledger")" = "unknown" ]
+  [ "$(jq -r '.model_identity_source' "$ledger")" = "not-exposed" ]
 }
 
 @test "MSYS no-conversion records the declared and materialized drive paths" {
@@ -74,6 +76,7 @@ run_observer() {
   ledger="$BATS_TEST_TMPDIR/.lumvaleos/agent-actions.jsonl"
   [ "$(jq -r '.host_surface' "$ledger")" = "unknown" ]
   [ "$(jq -r '.model' "$ledger")" = "unknown" ]
+  [ "$(jq -r '.model_identity_source' "$ledger")" = "not-exposed" ]
   [ "$(jq -r '.attribution_quality' "$ledger")" = "partial" ]
 }
 
@@ -81,7 +84,7 @@ run_observer() {
   mkdir -p "$BATS_TEST_TMPDIR/.lumvaleos"
   printf '%s\n' \
     '{"schema_version":1,"observed_at":"2026-09-04T00:00:00Z","phase":"pre","host_surface":"codex","model":"gpt-5.6-sol","session_id":"s1","turn_id":"t1","tool_name":"Bash","command_sha256":"sha256:a","declared_targets":[],"materialized_targets":[],"path_semantics":"native","risk":"none","guard_decision":"not-exposed","attribution_quality":"host-and-model"}' \
-    '{"schema_version":1,"observed_at":"2026-09-04T00:01:00Z","phase":"pre","host_surface":"vscode-copilot","model":"unknown","session_id":"s2","turn_id":"t2","tool_name":"Bash","command_sha256":"sha256:b","declared_targets":["/c/tmp/x"],"materialized_targets":["C:/c/tmp/x"],"path_semantics":"msys-no-path-conversion","risk":"drive-root-path-materialization","guard_decision":"not-exposed","attribution_quality":"partial"}' \
+    '{"schema_version":1,"observed_at":"2026-09-04T00:01:00Z","phase":"pre","host_surface":"vscode-copilot","model":"unknown","model_identity_source":"not-exposed","session_id":"s2","turn_id":"t2","tool_name":"Bash","command_sha256":"sha256:b","declared_targets":["/c/tmp/x"],"materialized_targets":["C:/c/tmp/x"],"path_semantics":"msys-no-path-conversion","risk":"drive-root-path-materialization","guard_decision":"not-exposed","attribution_quality":"partial"}' \
     > "$BATS_TEST_TMPDIR/.lumvaleos/agent-actions.jsonl"
 
   cd "$BATS_TEST_TMPDIR"
@@ -91,5 +94,20 @@ run_observer() {
   echo "$output" | grep -q 'host=codex model=gpt-5.6-sol count=1'
   echo "$output" | grep -q 'host=vscode-copilot model=unknown count=1'
   echo "$output" | grep -q 'drive-root-path-materialization.*C:/c/tmp/x'
-  echo "$output" | grep -q 'model identity unavailable for 1 event(s); reported as unknown'
+  echo "$output" | grep -q 'host payload did not expose model identity for 1 event(s); reported as unknown'
+  ! echo "$output" | grep -q 'lack trustworthy non-exposure evidence'
+}
+
+@test "doctor warns for legacy or contradictory unknown-model records" {
+  mkdir -p "$BATS_TEST_TMPDIR/.lumvaleos"
+  printf '%s\n' \
+    '{"schema_version":1,"observed_at":"2026-09-04T00:00:00Z","host_surface":"codex","model":"unknown"}' \
+    '{"schema_version":1,"observed_at":"2026-09-04T00:01:00Z","host_surface":"codex","model":"unknown","model_identity_source":"host-payload"}' \
+    > "$BATS_TEST_TMPDIR/.lumvaleos/agent-actions.jsonl"
+
+  cd "$BATS_TEST_TMPDIR"
+  run env AMIR_LOOP_PROVENANCE_ROOT="$BATS_TEST_TMPDIR" bash "$DOCTOR" --json
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e '.status == "warn"'
+  echo "$output" | jq -e '.checks[] | select(.code == "provenance.identity" and .severity == "warn") | .message | contains("2 unknown-model event(s)")'
 }

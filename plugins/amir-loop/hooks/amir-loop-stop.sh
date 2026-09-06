@@ -165,6 +165,7 @@ record_action_provenance() {
   _tool=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.tool_name // .toolName // .tool // "unknown"' 2>/dev/null)
   _host=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.host_surface // .host // .client_name // .client // empty' 2>/dev/null)
   _model=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '.model // .model_id // .modelId // .agent.model // .metadata.model // empty' 2>/dev/null)
+  _model_identity_source="host-payload"
   if [ -z "$_host" ]; then
     case "$TRANSCRIPT" in
       *copilot-chat*|*copilot_chat*) _host="vscode-copilot" ;;
@@ -174,7 +175,10 @@ record_action_provenance() {
     esac
   fi
   [ -n "$_host" ] || _host="unknown"
-  [ -n "$_model" ] || _model="unknown"
+  if [ -z "$_model" ]; then
+    _model="unknown"
+    _model_identity_source="not-exposed"
+  fi
 
   _command=$(printf '%s' "$HOOK_INPUT" | "$JQ" -r '
     .tool_input.command // .tool_input.cmd // .toolInput.command //
@@ -229,12 +233,14 @@ record_action_provenance() {
   _observed=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   mkdir -p "$CWD/.lumvaleos" 2>/dev/null || return 0
   "$JQ" -nc --arg at "$_observed" --arg phase "$_phase" --arg host "$_host" \
-    --arg model "$_model" --arg session "$SESSION_KEY" --arg turn "${TURN_ID:-unknown}" \
+    --arg model "$_model" --arg model_source "$_model_identity_source" \
+    --arg session "$SESSION_KEY" --arg turn "${TURN_ID:-unknown}" \
     --arg tool "$_tool" --arg sum "$_command_sum" --arg semantics "$_semantics" \
     --arg risk "$_risk" --arg quality "$_quality" --arg outcome "$_outcome" \
     --arg decision "$_decision" \
     --argjson declared "$_declared" --argjson materialized "$_materialized" \
     '{schema_version:1, observed_at:$at, phase:$phase, host_surface:$host, model:$model,
+      model_identity_source:$model_source,
       session_id:$session, turn_id:$turn, tool_name:$tool, command_sha256:$sum,
       declared_targets:$declared, materialized_targets:$materialized,
       path_semantics:$semantics, risk:$risk, outcome:$outcome,

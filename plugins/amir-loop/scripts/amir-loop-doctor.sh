@@ -68,7 +68,7 @@ diagnostic_remediation() {
     worktree.claim) echo "Preserve live claims; reclaim only well-formed claims beyond the configured stale threshold." ;;
     hooks.cross_host_parity) echo "Upgrade or reinstall Amir Loop on the named host, then compare hook hashes again." ;;
     provenance.ledger) echo "Repair the append-only provenance ledger before relying on attribution." ;;
-    provenance.identity) echo "Configure the host to include model identity in future hook events." ;;
+    provenance.identity) echo "Upgrade the hook for legacy rows; if the host supports model identity, configure it to expose the field." ;;
     provenance.risk) echo "Review the named materialized target and repair the host path-conversion boundary." ;;
     codex.notify) echo "Review the Codex notify hook; use --disable-codex-notify only with explicit authorization." ;;
     *) echo "" ;;
@@ -382,8 +382,10 @@ else
     group_by([.host_surface // "unknown", .model // "unknown"])[] |
     [.[0].host_surface // "unknown", .[0].model // "unknown", length] | @tsv
   ' "$PROVENANCE_LEDGER")
-  _unknown_models=$("$JQ" -s '[.[] | select((.model // "unknown") == "unknown")] | length' "$PROVENANCE_LEDGER")
-  [ "$_unknown_models" -eq 0 ] || warn "action provenance: model identity unavailable for $_unknown_models event(s); reported as unknown"
+  _not_exposed_models=$("$JQ" -s '[.[] | select((.model // "unknown") == "unknown" and .model_identity_source == "not-exposed")] | length' "$PROVENANCE_LEDGER")
+  [ "$_not_exposed_models" -eq 0 ] || ok "action provenance identity: host payload did not expose model identity for $_not_exposed_models event(s); reported as unknown"
+  _ambiguous_models=$("$JQ" -s '[.[] | select((.model // "unknown") == "unknown" and .model_identity_source != "not-exposed")] | length' "$PROVENANCE_LEDGER")
+  [ "$_ambiguous_models" -eq 0 ] || warn "action provenance identity: $_ambiguous_models unknown-model event(s) lack trustworthy non-exposure evidence"
   while IFS=$'\t' read -r _at _h _m _session _turn _risk_target; do
     warn "action provenance risk: $_at host=$_h model=$_m session=$_session turn=$_turn drive-root-path-materialization target=$_risk_target"
   done < <("$JQ" -rs '
