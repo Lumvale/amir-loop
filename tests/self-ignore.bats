@@ -112,3 +112,56 @@ load helper
   [ -n "$output" ]
   [ "$(echo "$output" | jq -r '.decision')" = "block" ]
 }
+
+# The kill switch matched NEITHER existing pattern (Lumvale/amir-loop#113).
+#
+# `/.amir-loop-*` requires the leading dot; `/amir-loop.*.local.md` requires the `.local.md` tail.
+# `amir-loop-off` has neither, so it showed as untracked in every consumer repo — and on 2026-09-06
+# a `git add -A` swept `.claude/amir-loop-off` into a `lumvale-os` feature commit, caught only
+# because the diff stat said three files where two were expected.
+#
+# This is the eighth artefact the comment above predicted, and it was found the same way as the
+# first seven: by it reaching a commit.
+
+@test "the kill switch is ignored — it matched neither prior pattern" {
+  use_fixture claude-code.jsonl
+  arm_state 1 10
+  run run_hook
+  [ "$status" -eq 0 ]
+  grep -qxF '/amir-loop-off*' "$BATS_TEST_TMPDIR/.claude/.gitignore"
+}
+
+@test "the rule actually covers the real filenames, not just itself" {
+  # POSITIVE CONTROL: a rule that is present but does not match is the failure this replaces.
+  # `git check-ignore` is the only authority on whether a pattern matches; asserting the line
+  # exists proves nothing about `amir-loop-off.disabled-20260904`, which also occurs on disk.
+  use_fixture claude-code.jsonl
+  arm_state 1 10
+  run run_hook
+  [ "$status" -eq 0 ]
+  cd "$BATS_TEST_TMPDIR"
+  git init -q . 2>/dev/null || skip "git unavailable"
+  : > .claude/amir-loop-off
+  : > .claude/amir-loop-off.disabled-20260904
+  run git check-ignore -q .claude/amir-loop-off
+  [ "$status" -eq 0 ]
+  run git check-ignore -q .claude/amir-loop-off.disabled-20260904
+  [ "$status" -eq 0 ]
+}
+
+@test "scaffolded content a consumer may want to commit is NOT ignored" {
+  # FAULT INJECTION against over-reach: the broader `/amir-loop-*` would have swallowed these, and
+  # this hook must not decide for a consumer that its principles file is scratch.
+  use_fixture claude-code.jsonl
+  arm_state 1 10
+  run run_hook
+  [ "$status" -eq 0 ]
+  cd "$BATS_TEST_TMPDIR"
+  git init -q . 2>/dev/null || skip "git unavailable"
+  : > .claude/amir-loop-principles.md
+  : > .claude/amir-loop-dependencies.json
+  run git check-ignore -q .claude/amir-loop-principles.md
+  [ "$status" -ne 0 ]
+  run git check-ignore -q .claude/amir-loop-dependencies.json
+  [ "$status" -ne 0 ]
+}
