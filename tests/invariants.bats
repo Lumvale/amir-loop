@@ -772,6 +772,18 @@ EOF
 
   run grep -q "production or recurring chaos requires" "$BATS_TEST_DIRNAME/../templates/principles/lumvale-fleet.md"
   [ "$status" -eq 0 ]
+
+  run grep -q 'technique.strategy' "$BATS_TEST_DIRNAME/../templates/principles/lumvale-fleet.md"
+  [ "$status" -eq 0 ]
+
+  run grep -q 'technique_decision' "$BATS_TEST_DIRNAME/../templates/principles/lumvale-fleet.md"
+  [ "$status" -eq 0 ]
+
+  run grep -q 'Do not mechanically run all catalog entries' "$BATS_TEST_DIRNAME/../templates/principles/lumvale-fleet.md"
+  [ "$status" -eq 0 ]
+
+  run grep -q 'restricted-sensitive' "$BATS_TEST_DIRNAME/../templates/principles/lumvale-fleet.md"
+  [ "$status" -eq 0 ]
 }
 
 @test "automatic and manual briefs enforce governed recursive improvement" {

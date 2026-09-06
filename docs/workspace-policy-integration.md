@@ -37,3 +37,11 @@ without changing the portable Stop hook.
 Workspace configuration can narrow behavior but cannot disable Amir Loop's bounds, direct-request
 priority, evidence-backed closeout, or LumvaleOS tenancy, authentication, audit, secret, production,
 and authority invariants.
+
+For Lumvale fleet policy, the rendered principles also carry the portfolio technique-selection
+contract. Material work invokes LumvaleOS `technique.strategy`; its result is a candidate set and
+complete evidence ledger, not permission to run all methods or a claim that any method executed.
+The loop may close only after selected candidates are recorded as evidence-backed `applied`, owned
+`deferred`, reasoned `not_applicable`, or honest `unknown`. Existing AST/code/workflow graphs, MBT
+and PBT remain in force. Workspace privacy and authority controls take precedence, so
+restricted-sensitive material cannot become analyzable merely because a technique is relevant.

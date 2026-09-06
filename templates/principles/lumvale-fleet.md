@@ -52,6 +52,15 @@ opt-in per project and version-controlled.
   against `repos/Lumvale/<repo>/commits/main` before publishing a number.
 
 ## Definition of done
+- Before consequential design, implementation, review, research, incident, schedule or playbook
+  closure, resolve `lumvale-docs/engineering/techniques/README.md` fresh and call LumvaleOS
+  `technique.strategy` with the concrete question, changed paths, surface and risk tier. Carry every
+  selected candidate in a `technique_decision`: `applied` requires its executor, exact artifact/run,
+  freshness and limitations; `deferred` requires owner + reopening trigger; `not_applicable`
+  requires a reason; missing evidence remains `unknown`. Do not mechanically run all catalog entries.
+  The broader catalog widens and never replaces AST/code/workflow graphs, MBT or PBT. Privacy,
+  authority, review, ingestion and release controls override relevance, especially for
+  restricted-sensitive and not-yet-classified information.
 - Capture verified findings and close out through LumvaleOS. Use ordinary local shell, test,
   review, and git tools for implementation; LumvaleOS governs knowledge, workflow, backlog,
   and evidence rather than replacing every engineering tool.
