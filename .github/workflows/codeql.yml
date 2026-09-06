@@ -25,7 +25,7 @@ concurrency:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
-    runs-on: ${{ vars.RUNNER_LABEL }}
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       security-events: write
