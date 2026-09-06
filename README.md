@@ -184,6 +184,8 @@ upgrade, use the repository-side recovery launcher from any directory:
 ```powershell
 & C:\path\to\amir-loop\scripts\amir-loop-current.ps1 status
 & C:\path\to\amir-loop\scripts\amir-loop-current.ps1 doctor -Json
+& C:\path\to\amir-loop\scripts\amir-loop-current.ps1 setup -Prompt 'Fix the parser #42 --max-iterations 20'
+& C:\path\to\amir-loop\scripts\amir-loop-current.ps1 init -ProjectRoot C:\path\to\project
 ```
 
 The launcher parses semantic version and Codex build components to deterministically select the
@@ -230,6 +232,12 @@ cannot silently claim schedules from a different ambient Workspace.
 | `/amir-loop-status` | Shows the current loop state without mutation. JSON mode accepts a session selector and reconciles state, claim, and kill-switch evidence while keeping runtime liveness UNKNOWN. |
 | `/amir-loop-init` | Scaffolds a `.claude/amir-loop-principles.md` file from `templates/principles/`, if one does not already exist here. Never overwrites an existing principles file. |
 | `/amir-loop-doctor` | Diagnoses why the loop is or is not working on this machine — bash resolution, vendored `jq`, conflicting Stop-hook registrations, and stale copies across supported hosts — and states a concrete fix for each failure. |
+
+Windows start and init commands use native PowerShell launchers. Start forwards the complete
+prompt as one argument to the portable shell core through Git for Windows, so PowerShell/WSL
+resolution and shell interpolation cannot alter it. Init copies the template packaged with the
+plugin and preserves an existing principles file byte-for-byte. POSIX uses the sibling shell
+entrypoints with the same state and template contracts.
 
 ## Configuration
 

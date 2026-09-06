@@ -1,11 +1,13 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('status', 'doctor')]
+    [ValidateSet('status', 'doctor', 'setup', 'init')]
     [string]$Command = 'status',
     [string]$CacheRoot,
     [string]$InstalledRoot,
     [switch]$Json,
     [switch]$DisableCodexNotify,
+    [string]$Prompt,
+    [string]$ProjectRoot,
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$CommandArguments
 )
@@ -17,6 +19,18 @@ if ($DisableCodexNotify) {
     if ($Command -ne 'doctor') {
         throw '-DisableCodexNotify is valid only with the doctor command.'
     }
+}
+if ($Json -and $Command -notin @('status', 'doctor')) {
+    throw '-Json is valid only with status or doctor.'
+}
+if ($Prompt -and $Command -ne 'setup') {
+    throw '-Prompt is valid only with the setup command.'
+}
+if ($Command -eq 'setup' -and -not $Prompt) {
+    throw "The setup command requires -Prompt. Use the dedicated cancel command to stop a loop."
+}
+if ($ProjectRoot -and $Command -ne 'init') {
+    throw '-ProjectRoot is valid only with the init command.'
 }
 
 function Test-AmirLoopRoot {
@@ -99,6 +113,8 @@ if (Test-Path -LiteralPath $nativeScript -PathType Leaf) {
     $nativeArguments = @($forwardedArguments)
     if ($Json) { $nativeArguments += '-Json' }
     if ($DisableCodexNotify) { $nativeArguments += '-DisableCodexNotify' }
+    if ($Prompt) { $nativeArguments += @('-Prompt', $Prompt) }
+    if ($ProjectRoot) { $nativeArguments += @('-ProjectRoot', $ProjectRoot) }
     $powerShellHost = (Get-Process -Id $PID).Path
     & $powerShellHost -NoProfile -ExecutionPolicy Bypass -File $nativeScript @nativeArguments
     exit $LASTEXITCODE
@@ -129,5 +145,7 @@ if ($conversionExit -ne 0 -or -not $posixScript) {
 $shellArguments = @($forwardedArguments)
 if ($Json) { $shellArguments += '--json' }
 if ($DisableCodexNotify) { $shellArguments += '--disable-codex-notify' }
+if ($Prompt) { $shellArguments += $Prompt }
+if ($ProjectRoot) { $shellArguments += $ProjectRoot }
 & $bash $posixScript @shellArguments
 exit $LASTEXITCODE
