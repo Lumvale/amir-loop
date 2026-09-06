@@ -144,11 +144,19 @@ EXTERNAL_BLOCKER_FILE="$CWD/.claude/.amir-loop-external-blocker-$SESSION_KEY.jso
 EXACT_OUTPUT_FILE="$CWD/.claude/.amir-loop-exact-output-$SESSION_KEY"
 ACTION_LEDGER="$CWD/.lumvaleos/agent-actions.jsonl"
 CLAIM_HELPER="$(cd "$(dirname "$0")/../scripts" && pwd)/amir-loop-worktree-claim.sh"
+CLAIM_ROOT="$CWD"
+_claim_workspace_root="${AMIR_LOOP_WORKSPACE_ROOT:-${WORKSPACE_ROOT:-}}"
+if [ -n "$_claim_workspace_root" ] && [ -f "$_claim_workspace_root/workspace.yaml" ]; then
+  CLAIM_ROOT=$(cd "$_claim_workspace_root" 2>/dev/null && pwd -P) || CLAIM_ROOT="$CWD"
+fi
 
-# Claim before this session writes any state. mkdir in the helper is the serialization
-# point, so two sessions arriving together cannot both decide that the worktree is free.
+# Claim before this session writes any state. An explicitly selected LumvaleOS Workspace
+# owns the claim; otherwise the current worktree does. This lets separately governed nested
+# source folders run concurrently while sessions targeting the same Workspace still serialize.
+# mkdir in the helper is the serialization point, so two sessions arriving together cannot
+# both decide that the Workspace/worktree is free.
 # A malformed or fresh foreign claim is a collision, never permission to repair/reset it.
-if ! CLAIM_ERROR=$(bash "$CLAIM_HELPER" acquire "$CWD" "$SESSION_KEY" 2>&1); then
+if ! CLAIM_ERROR=$(bash "$CLAIM_HELPER" acquire "$CLAIM_ROOT" "$SESSION_KEY" 2>&1); then
   if [ "$OBSERVE_EVENT" = "pre-tool" ]; then
     "$JQ" -nc --arg reason "$CLAIM_ERROR" \
       '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}'
@@ -876,7 +884,7 @@ case "$LIMIT" in ''|*[!0-9]*) rm -f "$STATE"; allow_stop ;; esac
 finish() {
   rm -f "$CLOSEOUT_FILE" "$EXACT_OUTPUT_FILE"
   rm -f "$STATE"
-  bash "$CLAIM_HELPER" release "$CWD" "$SESSION_KEY" >/dev/null 2>&1 || true
+  bash "$CLAIM_HELPER" release "$CLAIM_ROOT" "$SESSION_KEY" >/dev/null 2>&1 || true
   if [ -n "$TURN_ID" ]; then
     printf 'turn:%s\n' "$TURN_ID" > "$MARKER" 2>/dev/null
   else
