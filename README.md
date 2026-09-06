@@ -138,14 +138,17 @@ into an event.
 
 The shared host hook appends redacted pre/post-tool observations to
 `.lumvaleos/agent-actions.jsonl`. Each record carries the timestamp, host surface, session and
-turn identifiers, model when the host exposes it, tool name, a SHA-256 command fingerprint,
+turn identifiers, model when the host exposes it, its `model_identity_source`, tool name, a
+SHA-256 command fingerprint,
 path-shaped arguments, MSYS path semantics, outcome, and any guard decision present in the host
 payload. Raw prompts, commands, outputs, and credentials are not stored.
 
 `amir-loop-doctor` summarizes the ledger by host and model and highlights drive-root
-materialization risks. Missing identity stays `unknown`: the ledger supports deterministic
-attribution only for actions observed after installation, and it never manufactures retrospective
-proof. Hooks are prevention and evidence controls, not an operating-system security boundary;
+materialization risks. Missing identity stays `unknown`: `host-payload` proves the identifier was
+observed, while `not-exposed` proves the supported host fields were absent. Expected non-exposure
+is informational; ambiguous legacy or contradictory rows remain warnings. The ledger supports
+deterministic attribution only for actions observed after installation, and it never manufactures
+retrospective proof. Hooks are prevention and evidence controls, not an operating-system security boundary;
 restrict writable roots with the host sandbox or OS access controls when writes must be impossible.
 
 Agents and integrations can request a compact, stable diagnostic contract with
