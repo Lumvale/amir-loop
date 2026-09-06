@@ -289,6 +289,20 @@ record_action_provenance() {
 # `.lumvaleos/playbook-events.jsonl` into the commit that was fixing the problem, and it had to be
 # taken back out. The list of places the loop litters is longer than anyone remembers, which is
 # the argument for prefix rules maintained by the loop rather than by hand.
+# The loop's own litter in `.claude/`, named ONCE.
+#
+# It was written out at three call sites, which is precisely how a rule goes missing: `amir-loop-off`
+# — this hook's own kill switch, created by the user and by `amir-loop-cancel` — matched NEITHER
+# existing pattern. `/.amir-loop-*` requires the leading dot; `/amir-loop.*.local.md` requires the
+# `.local.md` tail. So it showed as untracked in every consumer repo, and on 2026-09-06 a `git add -A`
+# swept `.claude/amir-loop-off` into a `lumvale-os` feature commit. It was caught only because the
+# diff stat said three files where two were expected (Lumvale/amir-loop#113).
+#
+# Deliberately NOT the broader `/amir-loop-*`: `amir-loop-principles.md` and
+# `amir-loop-dependencies.json` are scaffolded content a consumer may legitimately want to commit,
+# and this file must not decide that for them.
+AMIR_LOOP_CLAUDE_IGNORES="/.amir-loop-* /amir-loop-off* /amir-loop.*.local.md"
+
 amir_loop_self_ignore() {
   _ai_dir="$1"
   shift
@@ -315,7 +329,7 @@ amir_loop_self_ignore() {
 # outbox. Payloads contain identifiers and classifications only, never prompt/tool bodies.
 if [ -n "$OBSERVE_EVENT" ]; then
   mkdir -p "$CWD/.claude" "$CWD/.lumvaleos" 2>/dev/null || exit 0
-  amir_loop_self_ignore "$CWD/.claude" '/.amir-loop-*' '/amir-loop.*.local.md'
+  amir_loop_self_ignore "$CWD/.claude" $AMIR_LOOP_CLAUDE_IGNORES
   amir_loop_self_ignore "$CWD/.lumvaleos" '/playbook-events.jsonl' '/agent-actions.jsonl' '/.playbook-heartbeat'
   case "$OBSERVE_EVENT" in
     pre-tool) record_action_provenance "pre"; exit 0 ;;
@@ -613,7 +627,7 @@ else
     ''|*[!0-9]*) DEADLINE="invalid" ;;
     *)
       mkdir -p "$CWD/.claude" 2>/dev/null || allow_stop
-      amir_loop_self_ignore "$CWD/.claude" '/.amir-loop-*' '/amir-loop.*.local.md'
+      amir_loop_self_ignore "$CWD/.claude" $AMIR_LOOP_CLAUDE_IGNORES
       amir_loop_self_ignore "$CWD/.lumvaleos" '/playbook-events.jsonl' '/agent-actions.jsonl' '/.playbook-heartbeat'
       [ -f "$CAMPAIGN" ] || date -u +%s > "$CAMPAIGN" 2>/dev/null || allow_stop
       START=$(cat "$CAMPAIGN" 2>/dev/null)
@@ -689,7 +703,7 @@ fi
 
 if [ ! -f "$STATE" ]; then
   mkdir -p "$CWD/.claude" 2>/dev/null || allow_stop
-  amir_loop_self_ignore "$CWD/.claude" '/.amir-loop-*' '/amir-loop.*.local.md'
+  amir_loop_self_ignore "$CWD/.claude" $AMIR_LOOP_CLAUDE_IGNORES
   amir_loop_self_ignore "$CWD/.lumvaleos" '/playbook-events.jsonl' '/agent-actions.jsonl' '/.playbook-heartbeat'
   {
     cat <<EOF
