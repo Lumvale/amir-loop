@@ -186,6 +186,7 @@ upgrade, use the repository-side recovery launcher from any directory:
 & C:\path\to\amir-loop\scripts\amir-loop-current.ps1 doctor -Json
 & C:\path\to\amir-loop\scripts\amir-loop-current.ps1 setup -Prompt 'Fix the parser #42 --max-iterations 20'
 & C:\path\to\amir-loop\scripts\amir-loop-current.ps1 init -ProjectRoot C:\path\to\project
+& C:\path\to\amir-loop\scripts\amir-loop-current.ps1 cancel
 ```
 
 The launcher parses semantic version and Codex build components to deterministically select the

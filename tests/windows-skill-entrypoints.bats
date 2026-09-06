@@ -89,3 +89,55 @@ load helper
   [ "$status" -eq 0 ]
   echo "$output" | tr -d '\r' | jq -e '.selection.source == "argument" and .selection.session_id == "session-one" and .reconciliation.state == "armed-claimed"' >/dev/null
 }
+
+@test "native cancel skill routes Windows through PowerShell and preserves cancellation semantics" {
+  command -v powershell.exe >/dev/null 2>&1 || skip "PowerShell is Windows-only"
+  skill="$BATS_TEST_DIRNAME/../plugins/amir-loop/skills/amir-loop-cancel/SKILL.md"
+  script=$(cygpath -w "$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-cancel.ps1")
+  project="$BATS_TEST_TMPDIR/project with spaces"
+  mkdir -p "$project/.claude/.amir-loop-worktree-claim"
+  printf 'live evidence\n' > "$project/.claude/amir-loop.session-one.local.md"
+  printf 'legacy\n' > "$project/.claude/amir-loop.local.md"
+  printf 'pending\n' > "$project/.claude/amir-loop.pending.local.md"
+  printf 'session-one\n' > "$project/.claude/.amir-loop-worktree-claim/owner"
+  printf '100\n' > "$project/.claude/.amir-loop-worktree-claim/heartbeat"
+  project_win=$(cygpath -w "$project")
+
+  run powershell.exe -NoProfile -Command "Set-Location -LiteralPath '$project_win'; \$env:PATH=\"\$env:SystemRoot\\System32;\$env:PATH\"; & '$script'"
+
+  [ "$status" -eq 0 ]
+  [ -f "$project/.claude/amir-loop-off" ]
+  [ -f "$project/.claude/amir-loop.session-one.local.md" ]
+  grep -q '^live evidence$' "$project/.claude/amir-loop.session-one.local.md"
+  [ ! -e "$project/.claude/amir-loop.local.md" ]
+  [ ! -e "$project/.claude/amir-loop.pending.local.md" ]
+  [ ! -e "$project/.claude/.amir-loop-worktree-claim" ]
+  grep -q 'amir-loop-cancel.ps1' "$skill"
+  grep -q 'Do not invoke bare `bash`' "$skill"
+}
+
+@test "PowerShell cancel rejects unexpected arguments without mutation" {
+  command -v powershell.exe >/dev/null 2>&1 || skip "PowerShell is Windows-only"
+  script=$(cygpath -w "$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-cancel.ps1")
+  project="$BATS_TEST_TMPDIR/project"
+  mkdir -p "$project/.claude"
+  printf 'pending\n' > "$project/.claude/amir-loop.pending.local.md"
+  project_win=$(cygpath -w "$project")
+
+  run powershell.exe -NoProfile -Command "Set-Location -LiteralPath '$project_win'; & '$script' 'untrusted text'"
+
+  [ "$status" -ne 0 ]
+  [ -f "$project/.claude/amir-loop.pending.local.md" ]
+  [ ! -e "$project/.claude/amir-loop-off" ]
+}
+
+@test "native status skill uses cache-relative entrypoints and preserves UNKNOWN semantics" {
+  skill="$BATS_TEST_DIRNAME/../plugins/amir-loop/skills/amir-loop-status/SKILL.md"
+  [ -f "$skill" ]
+  grep -q '../../scripts/amir-loop-status.ps1' "$skill"
+  grep -q '../../scripts/amir-loop-status.sh' "$skill"
+  grep -q 'Do not invoke bare `bash`' "$skill"
+  grep -q 'process liveness' "$skill"
+  grep -qi 'do not' "$skill"
+  ! grep -Eq 'plugins/cache/.+/amir-loop/[0-9]' "$skill"
+}
