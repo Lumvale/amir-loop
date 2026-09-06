@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('status', 'doctor', 'setup', 'init')]
+    [ValidateSet('status', 'doctor', 'setup', 'init', 'cancel')]
     [string]$Command = 'status',
     [string]$CacheRoot,
     [string]$InstalledRoot,

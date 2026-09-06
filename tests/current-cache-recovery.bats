@@ -104,3 +104,29 @@ EOF
   [ "$status" -ne 0 ]
   [[ "$output" == *"No valid Amir Loop installation with a 'status' entrypoint"* ]]
 }
+
+@test "recovery invokes native cancel with zero unintended argv" {
+  root="$cache/1.0.0+codex.20260906224500"
+  mkdir -p "$root/.claude-plugin" "$root/scripts"
+  printf '{"name":"amir-loop","version":"1.0.0"}\n' > "$root/.claude-plugin/plugin.json"
+  cat > "$root/scripts/amir-loop-cancel.ps1" <<'EOF'
+param()
+if ($args.Count -ne 0) { throw "unexpected argv: $args" }
+Write-Output 'cancel:argv=0'
+EOF
+
+  run powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$launcher" cancel \
+    -CacheRoot "$(cygpath -w "$cache")"
+
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | tr -d '\r')" = 'cancel:argv=0' ]
+}
+
+@test "recovery rejects start-only and diagnostic switches for cancel" {
+  run powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$launcher" cancel -Prompt nope -CacheRoot "$(cygpath -w "$cache")"
+  [ "$status" -ne 0 ]
+  run powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$launcher" cancel -ProjectRoot "$BATS_TEST_TMPDIR" -CacheRoot "$(cygpath -w "$cache")"
+  [ "$status" -ne 0 ]
+  run powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$launcher" cancel -Json -CacheRoot "$(cygpath -w "$cache")"
+  [ "$status" -ne 0 ]
+}

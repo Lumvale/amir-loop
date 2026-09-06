@@ -6,6 +6,9 @@ hide-from-slash-command-tool: "true"
 
 # Cancel Amir Loop
 
+On Windows, use `scripts/amir-loop-cancel.ps1` through PowerShell; do not invoke bare Bash because
+it may resolve to WSL. The executable block below is the POSIX/Claude-host entrypoint.
+
 ```!
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/amir-loop-setup.sh" --cancel
 ```
