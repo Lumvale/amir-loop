@@ -1,17 +1,18 @@
 ---
 description: "Start an Amir Loop in this session with your own prompt"
 argument-hint: "PROMPT [--max-iterations N] [--completion-promise TEXT]"
-allowed-tools: ["Bash(bash \"${CLAUDE_PLUGIN_ROOT}/scripts/amir-loop-setup.sh\":*)"]
+allowed-tools: ["Bash(bash \"${CLAUDE_PLUGIN_ROOT}/scripts/amir-loop-setup.sh\":*)", "Bash(powershell.exe -NoProfile -ExecutionPolicy Bypass -File *amir-loop-setup.ps1:*)"]
 hide-from-slash-command-tool: "true"
 ---
 
 # Amir Loop
 
-Arm the loop with the prompt supplied below:
+Arm the loop with the prompt supplied below. Pass the complete prompt as one
+argument; never interpolate it into a command string.
 
-```!
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/amir-loop-setup.sh" "$ARGUMENTS"
-```
+- On Windows, run `& "$env:CLAUDE_PLUGIN_ROOT/scripts/amir-loop-setup.ps1" -Prompt $ARGUMENTS`
+  from PowerShell. Do not invoke bare Bash because it may resolve to WSL.
+- On POSIX, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/amir-loop-setup.sh" "$ARGUMENTS"`.
 
 Now work on that task. When you try to end your turn, the Stop hook feeds the SAME prompt back
 to you for the next iteration, so you will see your own previous work in the files and in git

@@ -156,5 +156,7 @@ SETUP="$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-setup.sh"
 @test "setup: the command passes ARGUMENTS quoted" {
   # The whole fix depends on this one character. Unquoted, the shell tokenizes the prompt before
   # the parser above ever runs, and every test in this block passes while the product is broken.
-  grep -q 'amir-loop-setup.sh" "\$ARGUMENTS"' "$BATS_TEST_DIRNAME/../plugins/amir-loop/commands/amir-loop.md"
+  command_file="$BATS_TEST_DIRNAME/../plugins/amir-loop/commands/amir-loop.md"
+  grep -q 'amir-loop-setup.sh" "\$ARGUMENTS"' "$command_file"
+  grep -q 'amir-loop-setup.ps1.*-Prompt \$ARGUMENTS' "$command_file"
 }
