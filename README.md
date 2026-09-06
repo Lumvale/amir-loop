@@ -178,6 +178,21 @@ not need a shell merely to write its JSON policy. Restart the host or begin a ne
 after changing plugin policy or installation because hosts cache skills, MCP configuration and
 hook definitions.
 
+If Codex advertises a versioned `SKILL.md` path that disappeared during an in-session plugin
+upgrade, use the repository-side recovery launcher from any directory:
+
+```powershell
+& C:\path\to\amir-loop\scripts\amir-loop-current.ps1 status
+& C:\path\to\amir-loop\scripts\amir-loop-current.ps1 doctor -Json
+```
+
+The launcher parses semantic version and Codex build components to deterministically select the
+newest cache directory whose manifest identifies
+`amir-loop` and which contains the requested entrypoint. It prefers a native PowerShell
+entrypoint and otherwise selects Git for Windows Bash explicitly, never WSL. `-InstalledRoot`
+provides a fail-closed exact-root override for forensic use. This is a discovery recovery path;
+its output describes installed/state evidence and does not prove that a live continuation ran.
+
 When the companion is installed, session start and user-prompt activity wake LumvaleOS's central
 automation reconciler. These are opportunistic signals, not timers: LumvaleOS finds every overdue
 Workspace job, checkpoints successful work, and uses one Workspace-global lease so concurrent
