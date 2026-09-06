@@ -776,6 +776,12 @@ EOF
   run grep -q 'technique.strategy' "$BATS_TEST_DIRNAME/../templates/principles/lumvale-fleet.md"
   [ "$status" -eq 0 ]
 
+  run grep -q 'technique.record' "$BATS_TEST_DIRNAME/../templates/principles/lumvale-fleet.md"
+  [ "$status" -eq 0 ]
+
+  run grep -q 'technique.record' "$BATS_TEST_DIRNAME/../plugins/amir-loop/templates/principles/lumvale-fleet.md"
+  [ "$status" -eq 0 ]
+
   run grep -q 'technique_decision' "$BATS_TEST_DIRNAME/../templates/principles/lumvale-fleet.md"
   [ "$status" -eq 0 ]
 

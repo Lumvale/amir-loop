@@ -61,6 +61,10 @@ opt-in per project and version-controlled.
   The broader catalog widens and never replaces AST/code/workflow graphs, MBT or PBT. Privacy,
   authority, review, ingestion and release controls override relevance, especially for
   restricted-sensitive and not-yet-classified information.
+  Persist a known disposition through LumvaleOS `technique.record` when available; keep its
+  assurance path relative to the active Workspace. Do not hand-write the assurance record or
+  describe selection as execution. Applied evidence needs immutable ref, tool/configuration
+  provenance and verified artifact digest/size; unknown keeps explicit blind spots.
 - Capture verified findings and close out through LumvaleOS. Use ordinary local shell, test,
   review, and git tools for implementation; LumvaleOS governs knowledge, workflow, backlog,
   and evidence rather than replacing every engineering tool.

@@ -45,3 +45,6 @@ The loop may close only after selected candidates are recorded as evidence-backe
 `deferred`, reasoned `not_applicable`, or honest `unknown`. Existing AST/code/workflow graphs, MBT
 and PBT remain in force. Workspace privacy and authority controls take precedence, so
 restricted-sensitive material cannot become analyzable merely because a technique is relevant.
+When LumvaleOS advertises `technique.record`, Amir Loop uses it to persist a known disposition into
+the active Workspace's existing assurance store. It never hand-writes the evidence record, accepts
+an absolute/out-of-Workspace assurance path, or treats the selector result as execution evidence.
