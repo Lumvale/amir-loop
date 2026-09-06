@@ -79,6 +79,11 @@ opt-in per project and version-controlled.
   Ordinary PRs intentionally have no runner-backed build/test checks. Never dispatch a product
   workflow after merge; fix the owning repository and require a later natural Fleet Build receipt
   before calling that default-branch SHA centrally verified or releasable.
+- Before the final push or merge, rebase onto current `main`, run the repository's
+  pre-verification/pre-push contract, and fix failures locally. Bind command evidence and
+  self-review to the resulting full head SHA; if rebase or any edit changes HEAD, renew both. This
+  is the first correctness barrier. The six-hour Fleet Build is the later fleet integration and
+  promotion-evidence layer, with manual dispatch reserved for genuinely urgent diagnosis.
 
 ## Lumvale architecture and recursive improvement
 - Follow the current Lumvale Architecture and Engineering ADRs, autonomous constitution,

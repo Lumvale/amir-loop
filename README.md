@@ -385,14 +385,15 @@ the agent to re-read its session-scoped state and reconstruct the direct primary
 verified evidence. A summary's suggested next step cannot silently promote fallback backlog
 work over unfinished direct work.
 
-Per ADR-067, ordinary pull requests do not wait for runner-backed build or test CI. The agent runs
-the applicable local/static checks, self-reviews the exact head, pushes, creates or updates the pull
+Per ADR-067, ordinary pull requests do not wait for runner-backed build or test CI. The agent
+rebases onto current `main`, runs the repository's pre-verification/pre-push contract and applicable
+local/static checks, self-reviews the resulting exact head, pushes, creates or updates the pull
 request, and merges that reviewed head automatically. It enables GitHub auto-merge when the
 repository plan supports it; otherwise it may immediately API-merge the reread exact head without
 adding an Actions workflow, making the repository public, or widening App permissions. A changed
 head must be revalidated.
 
-Hourly, nightly and weekly default-branch CI is asynchronous evidence for promotion, not a PR merge
+Every six hours, logical hourly, nightly and weekly default-branch CI is asynchronous evidence for promotion, not a PR merge
 gate. The build/test authority is `Lumvale/lumvale-infra` **Fleet Build** (stable workflow file
 `fleet-scheduler.yml`), which selects changed applicable repositories across both organizations and
 drains one concurrency-2 queue on one ephemeral runner. Durable reconciliation records the merged
