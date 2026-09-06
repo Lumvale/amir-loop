@@ -144,11 +144,19 @@ EXTERNAL_BLOCKER_FILE="$CWD/.claude/.amir-loop-external-blocker-$SESSION_KEY.jso
 EXACT_OUTPUT_FILE="$CWD/.claude/.amir-loop-exact-output-$SESSION_KEY"
 ACTION_LEDGER="$CWD/.lumvaleos/agent-actions.jsonl"
 CLAIM_HELPER="$(cd "$(dirname "$0")/../scripts" && pwd)/amir-loop-worktree-claim.sh"
+CLAIM_ROOT="$CWD"
+_claim_workspace_root="${AMIR_LOOP_WORKSPACE_ROOT:-${WORKSPACE_ROOT:-}}"
+if [ -n "$_claim_workspace_root" ] && [ -f "$_claim_workspace_root/workspace.yaml" ]; then
+  CLAIM_ROOT=$(cd "$_claim_workspace_root" 2>/dev/null && pwd -P) || CLAIM_ROOT="$CWD"
+fi
 
-# Claim before this session writes any state. mkdir in the helper is the serialization
-# point, so two sessions arriving together cannot both decide that the worktree is free.
+# Claim before this session writes any state. An explicitly selected LumvaleOS Workspace
+# owns the claim; otherwise the current worktree does. This lets separately governed nested
+# source folders run concurrently while sessions targeting the same Workspace still serialize.
+# mkdir in the helper is the serialization point, so two sessions arriving together cannot
+# both decide that the Workspace/worktree is free.
 # A malformed or fresh foreign claim is a collision, never permission to repair/reset it.
-if ! CLAIM_ERROR=$(bash "$CLAIM_HELPER" acquire "$CWD" "$SESSION_KEY" 2>&1); then
+if ! CLAIM_ERROR=$(bash "$CLAIM_HELPER" acquire "$CLAIM_ROOT" "$SESSION_KEY" 2>&1); then
   if [ "$OBSERVE_EVENT" = "pre-tool" ]; then
     "$JQ" -nc --arg reason "$CLAIM_ERROR" \
       '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}'
@@ -876,7 +884,7 @@ case "$LIMIT" in ''|*[!0-9]*) rm -f "$STATE"; allow_stop ;; esac
 finish() {
   rm -f "$CLOSEOUT_FILE" "$EXACT_OUTPUT_FILE"
   rm -f "$STATE"
-  bash "$CLAIM_HELPER" release "$CWD" "$SESSION_KEY" >/dev/null 2>&1 || true
+  bash "$CLAIM_HELPER" release "$CLAIM_ROOT" "$SESSION_KEY" >/dev/null 2>&1 || true
   if [ -n "$TURN_ID" ]; then
     printf 'turn:%s\n' "$TURN_ID" > "$MARKER" 2>/dev/null
   else
@@ -1098,12 +1106,19 @@ if [ -n "$GOAL" ] && [ "$GOAL" != "null" ]; then
     elif ! printf '%s' "$closeout" | "$JQ" -e '.actionable_items | type == "array" and length == 0' >/dev/null 2>&1; then
       closeout_rejection="actionable_items must be an empty array"
     elif ! printf '%s' "$closeout" | "$JQ" -e '
-      (.pending | type == "object") and
-      ([.pending.pr, .pending.test, .pending.migration, .pending.deployment,
-        .pending.cutover, .pending.follow_up, .pending.verification] |
-        all(. == false or . == null or . == []))
+      (.pending | type == "object" and length > 0) and
+      ([.pending[]] | all(. == false or . == null or . == []))
     ' >/dev/null 2>&1; then
-      closeout_rejection="pending must be an object with pr, test, migration, deployment, cutover, follow_up, and verification false"
+      closeout_rejection="pending must be a non-empty object of workflow-relevant fields whose values are false, null, or empty arrays"
+    elif ! printf '%s' "$closeout" | "$JQ" -e '
+      (.workflow == null) or
+      ((.workflow | type == "object") and
+       (.workflow.profile | type == "string" and length > 0) and
+       (.workflow.status == "completed" or .workflow.status == "not_applicable") and
+       (.workflow.status == "not_applicable" or
+        (.workflow.evidence | type == "array" and length > 0 and all(.[]; type == "string" and length > 0))))
+    ' >/dev/null 2>&1; then
+      closeout_rejection="workflow, when present, must name a profile and have status completed with non-empty evidence, or status not_applicable"
     elif ! printf '%s' "$closeout" | "$JQ" -e '
       ((.dependencies | type == "array") and all(.dependencies[];
         .required != true or
@@ -1145,7 +1160,7 @@ if [ -n "$GOAL" ] && [ "$GOAL" != "null" ]; then
     [ -n "$nonce" ] || nonce="${SESSION_KEY}-${ITER}-$(date -u +%s)"
     printf '%s' "$closeout" | "$JQ" --arg nonce "$nonce" --arg staged_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
       '. + {nonce: $nonce, staged_at: $staged_at}' > "$CLOSEOUT_FILE" 2>/dev/null || allow_stop
-    CLOSEOUT_PROMPT="The closeout proposal passed deterministic phase-one validation. Before confirming, re-check the preceding answer and current repository/dispatcher state: no actionable item, PR, test, migration, deployment, cutover, follow-up, verification, required dependency, or leased playbook may remain. If that remains true, reply with exactly these two tokens and no status report:
+    CLOSEOUT_PROMPT="The closeout proposal passed deterministic phase-one validation. Before confirming, re-check the preceding answer and current workflow state: no actionable item, workflow-relevant pending field, required dependency, or leased playbook may remain, and any declared workflow evidence must still be valid. If that remains true, reply with exactly these two tokens and no status report:
 <amir-loop-confirm>$nonce</amir-loop-confirm>
 <promise>$GOAL</promise>
 If anything remains, do not confirm; continue the next concrete action and later submit a fresh <amir-loop-closeout> proposal."
@@ -1166,7 +1181,7 @@ If anything remains, do not confirm; continue the next concrete action and later
   # the machine-readable contract explicit instead of accepting a keyword.
   case "$LAST" in
     *"<promise>$GOAL</promise>"*)
-      PROMPT_TEXT="Completion was not accepted because a promise token is not evidence. Continue the direct user goal. When all work is genuinely exhausted, first submit one compact JSON object as <amir-loop-closeout>{...}</amir-loop-closeout> with version=1, direct_goal_exhausted=true, continuation_escape=false, actionable_items=[], every pending field (pr, test, migration, deployment, cutover, follow_up, verification) false, each required dependency healthy with checked_at and evidence_id, and playbook status none or dispatcher-terminal completed/failed with receipt_id. Do not include the promise in phase one."
+      PROMPT_TEXT="Completion was not accepted because a promise token is not evidence. Continue the direct user goal. When all work is genuinely exhausted, first submit one compact JSON object as <amir-loop-closeout>{...}</amir-loop-closeout> with version=1, direct_goal_exhausted=true, continuation_escape=false, actionable_items=[], a non-empty pending object whose workflow-relevant fields are false, null, or empty arrays, each required dependency healthy with checked_at and evidence_id, and playbook status none or dispatcher-terminal completed/failed with receipt_id. For a governed business workflow, also include workflow={profile,status,evidence} using the Workspace definition of done; status completed requires non-empty evidence IDs. Do not include the promise in phase one."
       if [ -n "$TURN_ID" ]; then
         "$JQ" -n --arg prompt "$PROMPT_TEXT" --arg msg "Amir Loop rejected unverified completion promise" \
           '{decision: "block", reason: $prompt, systemMessage: $msg}'

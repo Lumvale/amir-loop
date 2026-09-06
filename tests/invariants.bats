@@ -385,6 +385,24 @@ EOF
   [ ! -f "$TEST_STATE" ]
 }
 
+@test "closeout accepts governed business-workflow evidence without engineering pending keys" {
+  arm_state 1 10
+  closeout='<amir-loop-closeout>{"version":1,"direct_goal_exhausted":true,"continuation_escape":false,"actionable_items":[],"pending":{"source_review":false,"reconciliation":false,"approval":null,"follow_up":[]},"workflow":{"profile":"money-documents","status":"completed","evidence":["inventory:money-documents-v1","reconciliation:balanced"]},"dependencies":[],"playbook":{"status":"none","dispatcher_terminal":true}}</amir-loop-closeout>'
+  CODEX_LAST_ASSISTANT="$closeout" run run_codex_hook
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.decision')" = "block" ]
+  nonce=$(jq -r '.nonce' "$BATS_TEST_TMPDIR/.claude/.amir-loop-closeout-s1.json")
+  [ -n "$nonce" ]
+}
+
+@test "completed business workflow requires evidence" {
+  arm_state 1 10
+  closeout='<amir-loop-closeout>{"version":1,"direct_goal_exhausted":true,"continuation_escape":false,"actionable_items":[],"pending":{"source_review":false},"workflow":{"profile":"money-documents","status":"completed","evidence":[]},"dependencies":[],"playbook":{"status":"none","dispatcher_terminal":true}}</amir-loop-closeout>'
+  CODEX_LAST_ASSISTANT="$closeout" run run_codex_hook
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -r '.reason' | grep -q 'status completed with non-empty evidence'
+}
+
 @test "closeout handles multiline JSON format across lines" {
   arm_state 1 10
   closeout=$(cat <<'EOF'

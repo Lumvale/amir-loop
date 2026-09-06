@@ -282,6 +282,16 @@ if [ "$CANCEL" = "1" ]; then
   # another live chat's iteration counter and goal. Pending/legacy state has no live owner.
   rm -f .claude/amir-loop.local.md .claude/amir-loop.pending.local.md
   : > "$OFF"
+  # A project-wide cancel must also relinquish the current worktree lease. Otherwise the
+  # off-switch prevents useful continuation while the stale claim still blocks peer sessions.
+  # The claim helper remains fail-closed and releases only the owner recorded in the claim.
+  CLAIM_HELPER="$(cd "$(dirname "$0")" && pwd)/amir-loop-worktree-claim.sh"
+  CLAIM_DIR="$(pwd)/.claude/.amir-loop-worktree-claim"
+  if [ -d "$CLAIM_DIR" ]; then
+    CLAIM_OWNER=$(cat "$CLAIM_DIR/owner" 2>/dev/null || true)
+    [ -n "$CLAIM_OWNER" ] || { echo "error: cannot release invalid worktree claim" >&2; exit 73; }
+    bash "$CLAIM_HELPER" release "$(pwd)" "$CLAIM_OWNER" || exit $?
+  fi
   echo "Amir Loop cancelled. The Stop hook will not re-arm in this project; session state was preserved."
   echo "Run the start command again (or delete $OFF) to re-enable it."
   exit 0

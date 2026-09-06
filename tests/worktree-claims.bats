@@ -29,6 +29,41 @@ CLAIM="$BATS_TEST_DIRNAME/../plugins/amir-loop/scripts/amir-loop-worktree-claim.
   grep -q '^s1$' "$BATS_TEST_TMPDIR/.claude/.amir-loop-worktree-claim/owner"
 }
 
+@test "nested source folders with distinct selected Workspaces do not share a claim" {
+  parent="$BATS_TEST_TMPDIR/source"
+  child="$parent/Money"
+  parent_ws="$BATS_TEST_TMPDIR/ws-parent"
+  child_ws="$BATS_TEST_TMPDIR/ws-money"
+  mkdir -p "$child" "$parent_ws" "$child_ws"
+  printf 'workspace: {id: ws-parent}\n' > "$parent_ws/workspace.yaml"
+  printf 'workspace: {id: ws-money}\n' > "$child_ws/workspace.yaml"
+
+  run bash -c "jq -n --arg cwd '$parent' --arg tp '$TRANSCRIPT' '{cwd:\$cwd,session_id:\"parent-session\",transcript_path:\$tp}' | AMIR_LOOP_WORKSPACE_ROOT='$parent_ws' AMIR_LOOP_CLAIM_NOW=100 bash '$HOOK'"
+  [ "$status" -eq 0 ]
+  run bash -c "jq -n --arg cwd '$child' --arg tp '$TRANSCRIPT' '{cwd:\$cwd,session_id:\"money-session\",transcript_path:\$tp}' | AMIR_LOOP_WORKSPACE_ROOT='$child_ws' AMIR_LOOP_CLAIM_NOW=100 bash '$HOOK'"
+  [ "$status" -eq 0 ]
+
+  grep -q '^parent-session$' "$parent_ws/.claude/.amir-loop-worktree-claim/owner"
+  grep -q '^money-session$' "$child_ws/.claude/.amir-loop-worktree-claim/owner"
+  [ ! -e "$parent/.claude/.amir-loop-worktree-claim" ]
+  [ ! -e "$child/.claude/.amir-loop-worktree-claim" ]
+}
+
+@test "different source folders selecting the same Workspace still collide" {
+  first="$BATS_TEST_TMPDIR/source-one"
+  second="$BATS_TEST_TMPDIR/source-two"
+  workspace="$BATS_TEST_TMPDIR/ws-shared"
+  mkdir -p "$first" "$second" "$workspace"
+  printf 'workspace: {id: ws-shared}\n' > "$workspace/workspace.yaml"
+
+  run bash -c "jq -n --arg cwd '$first' --arg tp '$TRANSCRIPT' '{cwd:\$cwd,session_id:\"first-session\",transcript_path:\$tp}' | AMIR_LOOP_WORKSPACE_ROOT='$workspace' AMIR_LOOP_CLAIM_NOW=100 bash '$HOOK'"
+  [ "$status" -eq 0 ]
+  run bash -c "jq -n --arg cwd '$second' '{cwd:\$cwd,session_id:\"second-session\",tool_name:\"Bash\"}' | AMIR_LOOP_WORKSPACE_ROOT='$workspace' AMIR_LOOP_CLAIM_NOW=101 bash '$HOOK' --observe=pre-tool"
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.hookSpecificOutput.permissionDecision')" = "deny" ]
+  grep -q '^first-session$' "$workspace/.claude/.amir-loop-worktree-claim/owner"
+}
+
 @test "pre-tool collision is denied fail closed" {
   mkdir -p "$BATS_TEST_TMPDIR/.claude/.amir-loop-worktree-claim"
   printf 's1\n' > "$BATS_TEST_TMPDIR/.claude/.amir-loop-worktree-claim/owner"
